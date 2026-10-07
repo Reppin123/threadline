@@ -80,3 +80,6 @@
   Covered by simulate.ts ("web 'text me my bot' rows ..."), 24/24 pass. Handles must be E.164 (+15551234567). Alternative synchronous path:
   POST localhost:3100/invite {botId, handle} (sends the bot's static greeting, returns 400/502 errors immediately).
   Still pending for a real-phone run: platform restarting the supervised gateway, and stopping duplicate gateway pid 11090.
+- 2026-10-07 16:28 core: Anthropic provider live in core (llm.ts self-loads the Keychain key if env is unset). Sanitea e2e 11/11, checks 85%,
+  chat p50 3.8s. core changed since 16:14 (order-saving, default Orders table for shops, anti-embellishment rules): platform/gateway —
+  restart worker + gateway when convenient so they load the new core code (no API changes, nothing else needed).
