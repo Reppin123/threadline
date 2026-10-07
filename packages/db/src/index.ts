@@ -5,6 +5,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { randomBytes } from "node:crypto";
 
+export { encrypt, decrypt, encryptJson, decryptJson } from "./crypto.ts";
+
 const here = dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = resolve(here, "../../..");
 export const MIGRATIONS_DIR = resolve(here, "../migrations");
@@ -89,6 +91,46 @@ export const json = {
     return JSON.stringify(v ?? null);
   },
 };
+
+// ---------- Job queue (see migrations/0003). Job types: build_bot {botId} | run_checks {botId, runId?} | recrawl {botId} | send_scheduled {} ----------
+export type JobType = "build_bot" | "run_checks" | "recrawl" | "send_scheduled" | (string & {});
+export function enqueueJob(type: JobType, payload: unknown, opts: { runAt?: string; dedupeKey?: string; maxAttempts?: number } = {}): string {
+  const jid = id("job_");
+  run(
+    "INSERT INTO jobs(id,type,payload_json,run_at,dedupe_key,max_attempts) VALUES (?,?,?,COALESCE(?,strftime('%Y-%m-%dT%H:%M:%fZ','now')),?,?) ON CONFLICT(dedupe_key) DO NOTHING",
+    [jid, type, json.str(payload), opts.runAt ?? null, opts.dedupeKey ?? null, opts.maxAttempts ?? 3],
+  );
+  return jid;
+}
+export interface JobRow { id: string; type: string; payload_json: string; attempts: number; max_attempts: number }
+export function claimJob(workerId: string, types?: string[]): JobRow | undefined {
+  return tx(() => {
+    const filter = types?.length ? ` AND type IN (${types.map(() => "?").join(",")})` : "";
+    const j = get<JobRow>(
+      `SELECT id,type,payload_json,attempts,max_attempts FROM jobs WHERE status='queued' AND run_at <= strftime('%Y-%m-%dT%H:%M:%fZ','now')${filter} ORDER BY run_at LIMIT 1`,
+      types ?? [],
+    );
+    if (!j) return undefined;
+    run("UPDATE jobs SET status='running', locked_by=?, locked_at=datetime('now'), attempts=attempts+1 WHERE id=?", [workerId, j.id]);
+    return { ...j, attempts: j.attempts + 1 };
+  });
+}
+export function completeJob(jobId: string, result?: unknown) {
+  run("UPDATE jobs SET status='done', result_json=?, finished_at=datetime('now') WHERE id=?", [json.str(result), jobId]);
+}
+export function failJob(jobId: string, error: string) {
+  const j = get<JobRow>("SELECT attempts,max_attempts FROM jobs WHERE id=?", [jobId]);
+  if (j && j.attempts < j.max_attempts) {
+    const backoffSec = 5 * 2 ** j.attempts;
+    run("UPDATE jobs SET status='queued', error=?, run_at=strftime('%Y-%m-%dT%H:%M:%fZ','now', ?) WHERE id=?", [error, `+${backoffSec} seconds`, jobId]);
+  } else {
+    run("UPDATE jobs SET status='failed', error=?, finished_at=datetime('now') WHERE id=?", [error, jobId]);
+  }
+}
+// Re-queue jobs whose worker died (locked > staleMinutes ago).
+export function requeueStaleJobs(staleMinutes = 15) {
+  run("UPDATE jobs SET status='queued', locked_by=NULL WHERE status='running' AND locked_at < datetime('now', ?)", [`-${staleMinutes} minutes`]);
+}
 
 export function logEvent(botId: string | null, type: string, data?: unknown) {
   run("INSERT INTO events(id, bot_id, type, data_json) VALUES (?,?,?,?)", [id("ev_"), botId, type, json.str(data)]);
