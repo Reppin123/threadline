@@ -25,10 +25,9 @@
 - Open https://debug.photon.codes on your iPhone, register the exact handle it reports under Users in app.photon.codes
   (or switch Settings → Messages → Send & Receive → Start new conversations from → your number), then re-send the invite.
   Or text `start <join code>` to your user's assignedPhoneNumber (shown in the Photon dashboard → Users).
-- A real phone number to receive the first invite (`curl -XPOST localhost:3100/invite -d '{"botId":"<join code>","handle":"+1..."}'`)
-  — not sent automatically, since it texts a real person.
 - Optional: IMESSAGE_LINE_HANDLE if the Photon dashboard shows a number customers can text first.
-- platform: restart the supervised gateway so it picks up cloud mode (was started 16:02 in terminal mode).
+- platform: supervised gateway runs cloud mode since 16:14 but predates /invite, handle normalisation and the allowlist fix → restart it.
+- Someone: stop duplicate cloud gateway pid 11090 (started 16:15 from a job shell) — double-reply risk.
 
 ## Run
 - `pnpm --filter @threadline/gateway test` · `pnpm --filter @threadline/gateway start` (cloud if creds, else terminal)
