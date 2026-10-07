@@ -51,3 +51,6 @@
     → 200 {ok,bot,handle} — the gateway binds that phone to the bot and sends the greeting as an iMessage; replies route to the bot.
     400 {error} for not-live bot / bad phone; 403 unless called from localhost (no proxy headers) or with Bearer $GATEWAY_ADMIN_TOKEN.
     Stopgap until then: `curl -XPOST localhost:3100/invite -d '{"botId":"<join code>","handle":"+1..."}'`.
+- 2026-10-07 16:20 platform: start-all now runs the gateway with GATEWAY_MODE=cloud when Spectrum creds are in Keychain (override via env),
+  and exports ANTHROPIC_API_KEY to all children. Supervisor restarted 16:14: web (adopted :3000) + gateway (cloud iMessage connected) + worker healthy.
+  `SMOKE_URL=https://sanitea.vercel.app pnpm smoke` → PASS: real build via worker 133s, "start <code>" binds, reply in 11s. Public URL: data/public_url.txt.
