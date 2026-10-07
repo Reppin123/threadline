@@ -124,3 +124,32 @@ Built **Cake Order Assistant** (join code `bakery-7xe`) in 18s · 2 docs · 4 ch
 
 > ✅ **Idea bot takes a cake order (mock data / Orders table)** — 1 saved record(s)
 
+
+---
+
+_Note: at 16:30 the public Petstore's /pet/findByStatus returned HTTP 500 for plain curl too (server-side bug); the bot reported it honestly and the live getPetById call succeeded._
+
+## 3. OpenAPI bot — Swagger Petstore (https://petstore3.swagger.io/api/v3/openapi.json)
+
+Built **Petstore Assistant** (join code `swagger-vg9`) in 17s · 3 docs · 8 chunks · 0 catalog items · tools: addPet, createUser, createUsersWithListInput, deleteOrder, deletePet, deleteUser, findPetsByStatus, findPetsByTags, find_rows, getInventory, getOrderById, getPetById, getUserByName, handoff_to_human, loginUser, logoutUser, placeOrder, recall, remember_fact, save_row, schedule_message, search_knowledge, updatePet, updatePetWithForm, updateUser, update_row, uploadFile · tables: Orders
+
+> ✅ **One http tool per OpenAPI operation** — 19 http tools
+
+**Customer:** which pets are available right now?
+  - 🔧 `findPetsByStatus` FAILED · input `{"status":"available"}` → `{"status":500,"ok":false,"data":{"code":500,"message":"There was an error processing your request. It has been logged (ID: 8a42c33b667a1dab)"}}`
+  - 🔧 `getInventory` FAILED · input `{}` → `{"status":500,"ok":false,"data":{"code":500,"message":"There was an error processing your request. It has been logged (ID: 3f296cee62bb4882)"}}`
+  - 🔧 `handoff_to_human` ok · input `{"reason":"Store system returning 500 errors for pet search and inventory","summary":"Customer asked which pets are available. findPetsByStatus and getInventory both failed with 500 errors."}` → `{"ok":true,"note":"The owner has been notified and will reply in this thread."}`
+**Bot:** Hi! Sorry, the store system gave me an error when I tried to pull up the available pets, so I can't show the list right now.
+**Bot:** I've let a team member know, and they'll reply here. If you have a pet ID, I can try looking that one up directly.
+<sub>10.3s · conv Jwy63g · couldnt_answer</sub>
+
+> ❌ **Successful live API tool call** — findPetsByStatus:false, getInventory:false, handoff_to_human:true
+
+**Customer:** can you look up pet id 1 for me?
+  - 🔧 `getPetById` ok · input `{"petId":1}` → `{"status":200,"ok":true,"data":{"id":1,"name":"Pet1","photoUrls":["test1","test2"],"tags":[],"status":"available"}}`
+**Bot:** Found it! Pet ID 1 is named Pet1, and its status is available.
+**Bot:** It has no tags listed. Want me to place an order for it, or look up another pet?
+<sub>31.3s · conv Jwy63g</sub>
+
+> ✅ **Second API call (getPetById)** — getPetById:true
+
