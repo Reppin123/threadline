@@ -1,0 +1,21 @@
+{
+  "name": "@threadline/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -p .",
+    "test": "tsx ../../scripts/test-worker.ts"
+  },
+  "dependencies": {
+    "@threadline/core": "workspace:*",
+    "@threadline/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
