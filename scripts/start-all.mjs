@@ -52,7 +52,10 @@ if (process.platform === "darwin" && process.env.THREADLINE_NO_KEYCHAIN !== "1")
     } catch {}
   }
 }
-process.env.THREADLINE_DB ||= join(ROOT, "data", "threadline.db");
+// Real iMessage when Spectrum creds are available and the mode wasn't chosen explicitly.
+const hasSpectrum = (process.env.SPECTRUM_PROJECT_ID || process.env.PHOTON_PROJECT_ID) && (process.env.SPECTRUM_PROJECT_SECRET || process.env.PHOTON_PROJECT_SECRET);
+if (!process.env.GATEWAY_MODE && hasSpectrum) process.env.GATEWAY_MODE = "cloud";
+process.env.THREADLINE_DB ||=join(ROOT, "data", "threadline.db");
 mkdirSync(dirname(process.env.THREADLINE_DB), { recursive: true });
 process.env.PATH = `/opt/homebrew/bin:${process.env.HOME}/.local/bin:${process.env.PATH}`;
 process.env.NODE_NO_WARNINGS ??= "1"; // hide node:sqlite ExperimentalWarning noise
@@ -227,6 +230,6 @@ async function reportHealth() {
   if (!shuttingDown) say("start", `still not healthy after startup window: ${last}`);
 }
 
-say("start", `mode=${DEV ? "dev" : "start"} db=${process.env.THREADLINE_DB} env=${envFiles.map((f) => f.replace(ROOT + "/", "")).join(",") || "(none)"}${keychainLoaded.length ? " keychain=" + keychainLoaded.join(",") : ""} services=${services.join(",")}`);
+say("start", `mode=${DEV ? "dev" : "start"} gateway=${process.env.GATEWAY_MODE || "terminal"} db=${process.env.THREADLINE_DB} env=${envFiles.map((f) => f.replace(ROOT + "/", "")).join(",") || "(none)"}${keychainLoaded.length ? " keychain=" + keychainLoaded.join(",") : ""} services=${services.join(",")}`);
 for (const s of services) start(s);
 reportHealth();
