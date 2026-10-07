@@ -1,0 +1,45 @@
+# Render Blueprint: one Docker web service + 1 GB persistent disk (disks need a paid instance type; single instance only).
+# Render → New → Blueprint → pick this repo → path deploy/render.yaml. Fill the sync:false secrets in the dashboard.
+# Render exposes one port (web :3000); the gateway uses stream ingest (outbound connection), so no webhook port is needed.
+services:
+  - type: web
+    name: threadline
+    runtime: docker
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    plan: starter
+    numInstances: 1
+    healthCheckPath: /
+    disk:
+      name: threadline-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: THREADLINE_DB
+        value: /data/threadline.db
+      - key: GATEWAY_MODE
+        value: cloud
+      - key: APP_URL
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: SPECTRUM_PROJECT_ID
+        sync: false
+      - key: SPECTRUM_PROJECT_SECRET
+        sync: false
+      - key: IMESSAGE_LINE_HANDLE
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false

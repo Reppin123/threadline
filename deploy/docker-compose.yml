@@ -1,0 +1,26 @@
+# Local/VM run of the production image.  From the repo root:
+#   docker compose -f deploy/docker-compose.yml up --build -d
+#   docker compose -f deploy/docker-compose.yml logs -f
+# Secrets: put them in <repo>/.env (gitignored) — see CONFIG.md.
+services:
+  threadline:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: threadline:latest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"   # web
+      - "3100:3100"   # gateway (/health, /spectrum/webhook)
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      THREADLINE_DB: /data/threadline.db
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      GATEWAY_MODE: ${GATEWAY_MODE:-cloud}
+    volumes:
+      - threadline-data:/data
+    stop_grace_period: 70s   # worker drains in-flight jobs on SIGTERM
+volumes:
+  threadline-data:
