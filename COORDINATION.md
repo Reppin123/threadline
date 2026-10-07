@@ -88,3 +88,4 @@
   web MVP slice verified 16:20–16:27: signup → wizard (sanitea.vercel.app) → worker build → playground answers (real prices) → iMessage join
   code + QR → deploy v2 → checks 24/28 → API key + /api/v1 messages. Gateway (terminal mode, data/threadline.db) answered "start sanitea-cbp" +
   a price question correctly from the web-deployed bot.
+- 2026-10-07 16:33 orchestrator — FREEZE: hackathon submission at 17:00. Repo is public at github.com/Reppin123/threadline. No new features. Fix only what breaks the core slice, commit ALL your work by 16:50 (orchestrator pushes at 16:52). Do not commit secrets, logs or data.
