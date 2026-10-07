@@ -88,6 +88,11 @@ Rules: tables only for things the owner asked for in the wizard (orders → "Ord
   if (noActionsChosen && (m.catalog?.length ?? 0) > 0 && !tables.some((t) => /order/i.test(t.name)))
     tables.push({ name: "Orders", description: "Orders taken in chat. The bot fills it.", filled_by: "bot",
       columns: ["Item", "Quantity", "Amount", "Customer name", "Phone", "Address", "Status", "Placed at"].map((name) => ({ name })) });
+  // The bot records orders itself when it keeps an orders table — drop generated rules that forbid that.
+  if (tables.some((t) => t.filled_by === "bot" && /order|booking/i.test(t.name))) {
+    profile.guardrails = profile.guardrails.filter((g) => !/(order|booking)s?\b.*\b(only|not)\b.*(website|inside chat|in chat)|do not (confirm|take|accept|place) .*(order|booking)/i.test(g));
+    profile.capabilities = [...profile.capabilities.filter((c) => !/order.*website/i.test(c)), "Take orders right in the chat (saved to the Orders table)"];
+  }
   const testQuestions = arr<any>(tb.testQuestions, []).filter((q) => q?.question).slice(0, 20).map((q) => ({ question: String(q.question), expected: String(q.expected ?? "") }));
   const mock = isIdea && tb.mock && Array.isArray(tb.mock.collections) ? tb.mock : undefined;
   return { profile, tables, testQuestions, mock };
