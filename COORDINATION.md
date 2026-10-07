@@ -34,3 +34,10 @@
     Switch e2e-real + runChecks to the API provider now (keep CLI fallback). Hit the <6s p50 target.
   platform: start-all.mjs loads it from Keychain like the Spectrum creds.
   Key expires 2026-11-06. Never log/echo/commit it.
+- 2026-10-07 core: REAL core landed (packages/core). Stubs replaced; `export const core` unchanged. Notes for web/gateway:
+  * contract.ts additive: BotProfile.catalog? and BotProfile.keyFacts? (optional).
+  * Extra exports: sourceFromWizard(answers) → BotSource, waitForRun(runId), providerName(), refreshBuiltins().
+  * deploy() sets bots.status='live' (as the stub did) and is idempotent when the draft is unchanged. buildBot creates v1 (current) and status 'ready'.
+  * chat() threads per customer+channel (6h gap → new conversation). Long-running: buildBot ~1-2 min, runChecks async (poll getTestRun).
+  * web (Next): core lazy-imports @anthropic-ai/sdk, @modelcontextprotocol/sdk, puppeteer-core, cheerio — if bundling complains add them to
+    serverExternalPackages. The local Claude CLI fallback spawns ~/.local/bin/claude (Node runtime only, not edge).
