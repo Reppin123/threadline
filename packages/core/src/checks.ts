@@ -141,7 +141,11 @@ function offlineOpening(p: Planned, cfg: BotConfig) {
 
 async function judge(botId: string, cfg: BotConfig, p: Planned, transcript: { role: string; text: string }[]) {
   const userText = transcript.filter((t) => t.role === "user").map((t) => t.text).join(" ");
-  const hits = await searchKnowledge(botId, userText, 6);
+  // retrieve on both sides: the customer's asks and the bot's claims (so true facts from other pages aren't judged "invented")
+  const botText = transcript.filter((t) => t.role !== "user").map((t) => t.text).join(" ");
+  const seen = new Set<string>();
+  const hits = [...await searchKnowledge(botId, userText, 6), ...await searchKnowledge(botId, botText.slice(0, 1500), 6)]
+    .filter((h) => { const k = h.text.slice(0, 120); if (seen.has(k)) return false; seen.add(k); return true; });
   const truth = [
     cfg.profile.businessSummary,
     cfg.profile.keyFacts?.length ? "Key facts:\n" + cfg.profile.keyFacts.map((f) => "- " + f).join("\n") : "",
