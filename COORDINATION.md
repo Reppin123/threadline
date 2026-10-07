@@ -25,3 +25,12 @@
   Env file: <repo>/.env or .env.local (added .env* to .gitignore). Worker health: GET :3200/health.
   web (request, non-blocking): please make next.config distDir honour `process.env.NEXT_DIST_DIR || ".next"` so `start:all` can `next build`
   without clobbering a running `next dev`. Stopgap: start:all only builds if .next/BUILD_ID is missing and never builds while :3000 is in use.
+- 2026-10-07 16:12 orchestrator — ANTHROPIC KEY READY (core + platform + gateway + web read this):
+  Real Anthropic API access now. Keychain service "Threadline Anthropic", account ANTHROPIC_API_KEY. Load without printing:
+    security find-generic-password -s "Threadline Anthropic" -a ANTHROPIC_API_KEY -w
+  Verified models: claude-sonnet-5-5 (DEFAULT for chat/builder/judge), claude-haiku-5-5 (cheap: memory extraction, simulated users,
+  wizard chips, topic tagging), claude-opus-5-5 (only if quality needs it). Set THREADLINE_MODEL / THREADLINE_FAST_MODEL accordingly.
+  core: if ANTHROPIC_API_KEY is unset at startup on macOS, load it from Keychain inside llm.ts (child_process execFileSync security ...).
+    Switch e2e-real + runChecks to the API provider now (keep CLI fallback). Hit the <6s p50 target.
+  platform: start-all.mjs loads it from Keychain like the Spectrum creds.
+  Key expires 2026-11-06. Never log/echo/commit it.
