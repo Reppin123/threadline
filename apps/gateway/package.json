@@ -3,5 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "dependencies": { "@threadline/core": "workspace:*", "@threadline/db": "workspace:*" }
+  "dependencies": {
+    "@spectrum-ts/imessage-local": "12.10.1",
+    "@threadline/core": "workspace:*",
+    "@threadline/db": "workspace:*",
+    "spectrum-ts": "12.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
 }
