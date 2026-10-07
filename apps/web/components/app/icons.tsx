@@ -1,0 +1,23 @@
+// Small inline icon set (stroke icons, 24 grid).
+type P = { size?: number; className?: string };
+const s = (size = 18) => ({ width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true });
+export const IBuild = ({ size }: P) => <svg {...s(size)}><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z" /></svg>;
+export const IData = ({ size }: P) => <svg {...s(size)}><ellipse cx="12" cy="5" rx="8" ry="3" /><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" /></svg>;
+export const IChat = ({ size }: P) => <svg {...s(size)}><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12z" /></svg>;
+export const IVersions = ({ size }: P) => <svg {...s(size)}><circle cx="6" cy="6" r="2.5" /><circle cx="6" cy="18" r="2.5" /><circle cx="18" cy="12" r="2.5" /><path d="M6 8.5v7M8.5 6H12a3.5 3.5 0 0 1 3.5 3.5v0" /></svg>;
+export const IStats = ({ size }: P) => <svg {...s(size)}><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" /></svg>;
+export const ISettings = ({ size }: P) => <svg {...s(size)}><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /></svg>;
+export const IDeploy = ({ size }: P) => <svg {...s(size)}><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
+export const IPlus = ({ size }: P) => <svg {...s(size)}><path d="M12 5v14M5 12h14" /></svg>;
+export const IChevron = ({ size }: P) => <svg {...s(size)}><path d="m6 9 6 6 6-6" /></svg>;
+export const IAttach = ({ size }: P) => <svg {...s(size)}><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5" /></svg>;
+export const ISend = ({ size }: P) => <svg {...s(size)} strokeWidth={2.2}><path d="M12 19V5M5 12l7-7 7 7" /></svg>;
+export const IPin = ({ size }: P) => <svg {...s(size)}><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z" /><circle cx="12" cy="10" r="2.5" /></svg>;
+export const IMic = ({ size }: P) => <svg {...s(size)}><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>;
+export const IX = ({ size }: P) => <svg {...s(size)}><path d="M18 6 6 18M6 6l12 12" /></svg>;
+export const ICheck = ({ size }: P) => <svg {...s(size)} strokeWidth={2.4}><path d="M5 12.5 10 17 19 7" /></svg>;
+export const ISearch = ({ size }: P) => <svg {...s(size)}><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>;
+export const IRefresh = ({ size }: P) => <svg {...s(size)}><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v5h-5" /></svg>;
+export const IApple = ({ size = 18 }: P) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3C6.5 3 2 6.8 2 11.5c0 2.7 1.5 5.1 3.8 6.6L5 21.5l3.7-2.1c1 .3 2.1.4 3.3.4 5.5 0 10-3.8 10-8.4S17.5 3 12 3z" /></svg>;
+export const ITelegram = ({ size = 18 }: P) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.5 4.2 2.9 11.4c-1.3.5-1.2 1.3-.2 1.6l4.8 1.5 1.8 5.6c.2.6.4.8.8.8.4 0 .6-.2.9-.5l2.3-2.2 4.7 3.5c.9.5 1.5.2 1.7-.8l3.1-14.6c.3-1.3-.5-1.9-1.3-1.6zM9.3 14.2l8.6-7.6c.4-.3-.1-.5-.6-.2L6.6 13.1" /></svg>;
+export const IWhatsApp = ({ size = 18 }: P) => <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.9s.7-2 1-2.3c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .6l-.3.5-.4.4c-.1.1-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.4 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.7-.1l2 1c.3.1.5.2.5.3.1.2.1.6-.1 1.1z" /></svg>;
