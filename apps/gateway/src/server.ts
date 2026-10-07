@@ -1,6 +1,6 @@
-// HTTP: GET /health, POST /spectrum/webhook (GATEWAY_INGEST=webhook).
-import { createServer, type Server } from "node:http";
-import type { Gateway } from "./gateway.ts";
+// HTTP: GET /health, POST /spectrum/webhook (GATEWAY_INGEST=webhook), POST /invite (local/admin only).
+import { createServer, type IncomingMessage, type Server } from "node:http";
+import { InviteError, type Gateway } from "./gateway.ts";
 import type { OutboundWorker } from "./outbound.ts";
 import type { TransportSet } from "./transports.ts";
 import { liveBotCount } from "./router.ts";
@@ -46,7 +46,22 @@ export function startServer(gw: Gateway, transports: TransportSet, outbound: Out
         res.writeHead(r.status, r.headers);
         return res.end(Buffer.from(r.body));
       }
-      send(404, { error: "not found", routes: ["GET /health", "POST /spectrum/webhook"] });
+      if (req.method === "POST" && url.pathname === "/invite") {
+        if (!adminAllowed(req)) return send(403, { error: "invite is only accepted from localhost or with Authorization: Bearer $GATEWAY_ADMIN_TOKEN" });
+        const chunks: Buffer[] = [];
+        for await (const c of req) chunks.push(c as Buffer);
+        let body: { botId?: string; handle?: string; channel?: string };
+        try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"); } catch { return send(400, { error: "body must be JSON {botId, handle}" }); }
+        if (!body.botId || !body.handle) return send(400, { error: "botId (or join code) and handle are required" });
+        try {
+          return send(200, { ok: true, ...(await gw.invite(body.botId, body.handle, body.channel)) });
+        } catch (e) {
+          if (e instanceof InviteError) return send(400, { error: e.message });
+          gw.fail(null, "invite", e);
+          return send(502, { error: `could not send: ${e instanceof Error ? e.message : e}` });
+        }
+      }
+      send(404, { error: "not found", routes: ["GET /health", "POST /spectrum/webhook", "POST /invite"] });
     } catch (e) {
       gw.fail(null, "http", e);
       send(500, { error: "internal error" });
@@ -56,4 +71,13 @@ export function startServer(gw: Gateway, transports: TransportSet, outbound: Out
     server.once("error", reject);
     server.listen(gw.cfg.port, gw.cfg.host, () => resolve(server));
   });
+}
+
+// /invite texts real people, so it must not be reachable through the public tunnel without a token.
+function adminAllowed(req: IncomingMessage): boolean {
+  const token = process.env.GATEWAY_ADMIN_TOKEN;
+  if (token && req.headers.authorization === `Bearer ${token}`) return true;
+  const proxied = ["cf-connecting-ip", "x-forwarded-for", "x-real-ip", "forwarded"].some((h) => req.headers[h]);
+  const ip = req.socket.remoteAddress ?? "";
+  return !proxied && (ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1");
 }

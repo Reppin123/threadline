@@ -233,6 +233,23 @@ export class Gateway {
   }
 
   /** Find (or open) the DM space for an outbound message to `handle`. */
+  /** Business-initiated start on the shared line: bind `handle` to the bot and text them the greeting first.
+   *  Needed on Spectrum's Free/Pro shared pool, where there's no fixed number customers could text "start <code>" to. */
+  async invite(botId: string, handle: string, channel = "imessage"): Promise<{ bot: string; handle: string; routeChannel: string }> {
+    const bot = router.liveBots().find((b) => b.id === botId || b.joinCode.toLowerCase() === botId.toLowerCase());
+    if (!bot) throw new InviteError(`bot ${botId} is not live on iMessage — deploy it first`);
+    const h = normalizeHandle(handle);
+    if (!h) throw new InviteError("handle must be an E.164 phone number (+15551234567) or an email");
+    const hasChannel = [...this.bindings.values()].some((b) => b.channel === channel);
+    const { space, binding } = await this.spaceFor(!hasChannel && this.cfg.mode === "terminal" ? "terminal" : channel, h, bot.id);
+    const currentId = router.boundBotId(binding.routeChannel, h);
+    router.bind(binding.routeChannel, h, bot.id);
+    this.spaces.set(`${binding.id}|${h}`, space);
+    logEvent(bot.id, "route_invite", { channel: binding.routeChannel, handle: h, from: currentId ?? null });
+    await this.sendBubbles(space, binding, [router.greetingText(bot) + router.switchedSuffix], bot.id);
+    return { bot: bot.name, handle: h, routeChannel: binding.routeChannel };
+  }
+
   async spaceFor(channel: string, handle: string, botId: string): Promise<{ space: Space; binding: PlatformBinding }> {
     const candidates = [...this.bindings.values()].filter((b) => b.channel === channel && (!b.fixedBotId || b.fixedBotId === botId));
     if (!candidates.length) throw new Error(`no ${channel} transport connected in GATEWAY_MODE=${this.cfg.mode}`);
@@ -290,4 +307,17 @@ async function saveMedia(it: Item, c: { name?: string; mimeType?: string; read: 
   const path = join(dir, `${Date.now()}-${it.message.id.replace(/[^a-zA-Z0-9]/g, "").slice(-12)}-${safe}`);
   writeFileSync(path, buf);
   return path;
+}
+
+export class InviteError extends Error {}
+
+/** "+1 (555) 123-4567" → "+15551234567"; 10-digit US numbers get +1; emails lowercased. */
+export function normalizeHandle(raw: string): string | null {
+  const t = raw.trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return t.toLowerCase();
+  const digits = t.replace(/[^\d]/g, "");
+  if (t.startsWith("+") && digits.length >= 8 && digits.length <= 15) return `+${digits}`;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return null;
 }

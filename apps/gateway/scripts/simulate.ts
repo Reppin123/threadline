@@ -309,6 +309,18 @@ await test("scheduled permanent failure → marked failed after max attempts", a
   expect(row(sid).status === "failed" && row(sid).attempts === cfg.maxSendAttempts, JSON.stringify(row(sid)));
 });
 
+await test("invite: business texts first (shared pool) → bound + greeted → customer's reply reaches the bot", async () => {
+  const r = await gw.invite(B.joinCode, "(555) 000-1234");
+  expect(r.handle === "+15550001234" && boundTo("+15550001234") === B.botId, JSON.stringify(r));
+  expect(textsTo("+15550001234").length === 1, textsTo("+15550001234").join(" | "));
+  const before = calls.length;
+  await say("+15550001234", "do you have green tea?");
+  expect(calls.length === before + 1 && calls.at(-1)!.botId === B.botId && textsTo("+15550001234").length >= 2, textsTo("+15550001234").join(" | "));
+  let rejected = 0;
+  for (const [bot, h] of [["nope-000", "+15550001234"], [B.botId, "not a phone"]]) { try { await gw.invite(bot, h); } catch { rejected++; } }
+  expect(rejected === 2, `rejected ${rejected}`);
+});
+
 await test("health snapshot is accurate", async () => {
   await say("+1005", "ping");
   const h = healthSnapshot(gw, transports, outbound);

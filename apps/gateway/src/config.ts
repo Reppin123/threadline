@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 // Gateway configuration, read once from process.env. Secrets are never logged.
 export type GatewayMode = "cloud" | "local" | "terminal";
 export type IngestMode = "stream" | "webhook";
@@ -35,8 +36,25 @@ function oneOf<T extends string>(name: string, allowed: readonly T[], fallback: 
   return v as T;
 }
 
+/** macOS: fill SPECTRUM_PROJECT_ID/SECRET from Keychain service "Threadline Spectrum" when unset (values never printed). */
+export function loadKeychainCreds() {
+  if (process.platform !== "darwin" || process.env.GATEWAY_NO_KEYCHAIN === "1") return;
+  for (const [name, alt] of [["SPECTRUM_PROJECT_ID", "PHOTON_PROJECT_ID"], ["SPECTRUM_PROJECT_SECRET", "PHOTON_PROJECT_SECRET"]]) {
+    if (process.env[name] || process.env[alt]) continue;
+    try {
+      const v = execFileSync("security", ["find-generic-password", "-s", "Threadline Spectrum", "-a", name, "-w"],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 }).trim();
+      if (v) process.env[name] = v;
+    } catch { /* not in Keychain — fine */ }
+  }
+}
+
+const hasCloudCreds = () =>
+  !!(process.env.PHOTON_PROJECT_ID || process.env.SPECTRUM_PROJECT_ID) && !!(process.env.PHOTON_PROJECT_SECRET || process.env.SPECTRUM_PROJECT_SECRET);
+
 export function loadConfig(): GatewayConfig {
-  const mode = oneOf("GATEWAY_MODE", ["cloud", "local", "terminal"] as const, "terminal");
+  // Default: cloud when Spectrum credentials are available, otherwise the credential-free terminal mode.
+  const mode = oneOf("GATEWAY_MODE", ["cloud", "local", "terminal"] as const, hasCloudCreds() ? "cloud" : "terminal");
   const quiet = process.env.GATEWAY_QUIET_UNBOUND;
   return {
     mode,

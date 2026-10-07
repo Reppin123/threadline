@@ -2,7 +2,7 @@
 //   GATEWAY_MODE=terminal (default) | local | cloud     — see apps/gateway/README.md
 import { db, dbPath, logEvent } from "@threadline/db";
 import { core } from "@threadline/core";
-import { loadConfig, ConfigError } from "./config.ts";
+import { loadConfig, loadKeychainCreds, ConfigError } from "./config.ts";
 import { Gateway } from "./gateway.ts";
 import { OutboundWorker } from "./outbound.ts";
 import { TransportSet } from "./transports.ts";
@@ -10,6 +10,7 @@ import { healthSnapshot, startServer } from "./server.ts";
 import { log } from "./log.ts";
 
 async function main() {
+  if (!process.env.GATEWAY_MODE || process.env.GATEWAY_MODE === "cloud") loadKeychainCreds();
   const cfg = loadConfig();
   db();   // open + migrate before anything else
   const gw = new Gateway(cfg, core);
