@@ -13,6 +13,9 @@ const email = "smoke@threadline.dev";
 let user = get<{ id: string }>("SELECT id FROM users WHERE email=?", [email]);
 if (!user) { user = { id: id("u_") }; run("INSERT INTO users(id,email,name) VALUES (?,?,?)", [user.id, email, "Smoke Test"]); }
 
+// Each run replaces the previous run's smoke bots (cascade deletes their routes, conversations, jobs stay as history).
+run("DELETE FROM bots WHERE user_id=?", [user.id]);
+
 const source = process.env.SMOKE_URL
   ? { kind: "website" as const, url: process.env.SMOKE_URL }
   : { kind: "idea" as const, idea: "A corner bakery that sells sourdough and takes cake pre-orders for pickup" };
@@ -60,7 +63,7 @@ try {
   await settle(10_000);
   const bound = get<{ bot_id: string }>("SELECT bot_id FROM line_routes WHERE channel='imessage' AND sender_handle=?", [handle])?.bot_id === bot.botId;
   want = sim.textsTo(handle).length + 1;
-  const q = "What do you sell, and can I pre-order a cake?";
+  const q = source.kind === "idea" ? "What do you sell, and can I pre-order a cake?" : "What do you sell?";
   const t1 = Date.now();
   sim.inject({ sender: handle, text: q });
   await settle(120_000);
@@ -68,6 +71,7 @@ try {
   result("gateway_join", bound ? "PASS" : "FAIL", `"start ${bot.joinCode}" → ${bound ? "bound" : "not bound"}`);
   result("gateway_chat", replies.length ? "PASS" : "FAIL", replies.length ? `${((Date.now() - t1) / 1000).toFixed(1)}s "${replies.join(" | ")}"` : "no reply bubbles");
   await transports.stop?.();
+  run("UPDATE channels SET status='off' WHERE bot_id=?", [bot.botId]); // don't leave smoke bots live on the shared line
 } catch (e: any) {
   result("gateway_chat", "SKIP", `gateway simulator unavailable: ${e?.message || e}`);
   // Fall back to a direct core.chat so the data path is still exercised.

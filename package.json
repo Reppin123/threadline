@@ -10,8 +10,8 @@
     "start:all": "node scripts/start-all.mjs",
     "dev:all": "node scripts/start-all.mjs --dev",
     "worker": "pnpm --filter @threadline/worker start",
-    "test:worker": "apps/worker/node_modules/.bin/tsx scripts/test-worker.ts",
-    "seed": "apps/worker/node_modules/.bin/tsx scripts/seed.ts",
+    "test:worker": "NODE_NO_WARNINGS=1 apps/worker/node_modules/.bin/tsx scripts/test-worker.ts",
+    "seed": "NODE_NO_WARNINGS=1 apps/worker/node_modules/.bin/tsx scripts/seed.ts",
     "smoke": "bash scripts/smoke.sh",
     "tunnel": "bash scripts/tunnel.sh",
     "backup": "bash scripts/backup.sh"

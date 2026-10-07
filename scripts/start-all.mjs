@@ -36,14 +36,19 @@ function loadEnvFile(p) {
 const envFiles = [".env", ".env.local"].map((f) => join(ROOT, f)).filter(existsSync);
 for (const f of envFiles.reverse()) loadEnvFile(f); // .env.local wins over .env; shell wins over both
 envFiles.reverse();
-// Photon/Spectrum creds from macOS Keychain when unset (see COORDINATION 16:05). Values are never printed.
+// Secrets from the macOS Keychain when unset (see COORDINATION 16:05 / 16:12). Values are never printed.
+const KEYCHAIN = [
+  { service: "Threadline Spectrum", account: "SPECTRUM_PROJECT_ID", alt: "PHOTON_PROJECT_ID" },
+  { service: "Threadline Spectrum", account: "SPECTRUM_PROJECT_SECRET", alt: "PHOTON_PROJECT_SECRET" },
+  { service: "Threadline Anthropic", account: "ANTHROPIC_API_KEY" },
+];
 const keychainLoaded = [];
-if (process.platform === "darwin") {
-  for (const acct of ["SPECTRUM_PROJECT_ID", "SPECTRUM_PROJECT_SECRET"]) {
-    if (process.env[acct] || process.env[acct.replace("SPECTRUM_", "PHOTON_")]) continue;
+if (process.platform === "darwin" && process.env.THREADLINE_NO_KEYCHAIN !== "1") {
+  for (const { service, account, alt } of KEYCHAIN) {
+    if (process.env[account] || (alt && process.env[alt])) continue;
     try {
-      const v = execFileSync("security", ["find-generic-password", "-s", "Threadline Spectrum", "-a", acct, "-w"], { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
-      if (v) { process.env[acct] = v; keychainLoaded.push(acct); }
+      const v = execFileSync("security", ["find-generic-password", "-s", service, "-a", account, "-w"], { stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+      if (v) { process.env[account] = v; keychainLoaded.push(account); }
     } catch {}
   }
 }
