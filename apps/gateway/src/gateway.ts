@@ -71,7 +71,9 @@ export class Gateway {
         this.stats.ignored++;          // tapbacks & receipts: nothing to answer
         return;
       }
-      const handle = binding.handleOf ? binding.handleOf(space, message) : message.sender?.id ?? space.id;
+      const raw = binding.handleOf ? binding.handleOf(space, message) : message.sender?.id ?? space.id;
+      // Match the E.164/lowercased-email form web writes into line_routes ("tel:+1 555…" → "+1555…").
+      const handle = binding.channel === "imessage" ? normalizeHandle(raw.replace(/^(tel|mailto|imessage|sms):/i, "")) ?? raw : raw;
       this.spaces.set(`${binding.id}|${handle}`, space);
       this.stats.inbound++;
       this.lastMessageAt = new Date();
