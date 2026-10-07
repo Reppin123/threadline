@@ -40,6 +40,7 @@ const browser = await puppeteer.launch({ executablePath: CHROME, headless: proce
 const page = await browser.newPage();
 await page.setViewport({ width: 1440, height: 900 });
 page.setDefaultTimeout(30000);
+page.setDefaultNavigationTimeout(120000); // dev server compiles routes on first hit
 const ignore = /favicon|Download the React DevTools|\[HMR\]|\[Fast Refresh\]|webpack-hmr|net::ERR_ABORTED/i;
 function watch(p) {
   p.on("console", (m) => { if (m.type() === "error" && !ignore.test(m.text())) consoleErrors.push({ url: p.url(), text: m.text().slice(0, 300) }); });

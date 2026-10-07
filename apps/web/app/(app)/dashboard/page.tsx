@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { all } from "@/lib/db";
 import { botCardStats, CHANNEL_LABEL, liveChannels, money, trialOf } from "@/lib/data";
 import { Sparkline } from "@/components/app/Sparkline";
-import { initials } from "@/components/app/TopBar";
+import { initials } from "@/lib/initials";
 import { IPlus } from "@/components/app/icons";
 
 export const metadata: Metadata = { title: "Your bots" };

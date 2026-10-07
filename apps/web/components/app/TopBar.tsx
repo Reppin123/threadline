@@ -1,4 +1,5 @@
 "use client";
+import { initials } from "@/lib/initials";
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -10,9 +11,7 @@ export interface TopBarProps extends SettingsData {
   trial: { pct: number; used: number; left: number; credit: number; daysLeft: number | null };
 }
 
-export function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "B";
-}
+export { initials };
 
 export function TopBar(props: TopBarProps) {
   const params = useParams<{ id?: string }>();
