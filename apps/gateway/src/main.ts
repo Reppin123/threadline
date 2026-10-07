@@ -12,6 +12,16 @@ import { log } from "./log.ts";
 async function main() {
   if (!process.env.GATEWAY_MODE || process.env.GATEWAY_MODE === "cloud") loadKeychainCreds();
   const cfg = loadConfig();
+  // Two gateways on one Spectrum project would both consume the stream and double-reply. Refuse to start a second one.
+  if (cfg.mode !== "terminal" && process.env.GATEWAY_ALLOW_DUPLICATE !== "1") {
+    const other = await fetch(`http://127.0.0.1:${cfg.port}/health`, { signal: AbortSignal.timeout(1500) })
+      .then((r) => r.json() as Promise<{ mode?: string; providers?: unknown }>).catch(() => null);
+    if (other?.mode && other.providers) {
+      console.error(`\n✖ another Threadline gateway (mode=${other.mode}) is already serving :${cfg.port}. ` +
+        "Running two would double-reply to every message. Stop it first, or set GATEWAY_PORT / GATEWAY_ALLOW_DUPLICATE=1.\n");
+      process.exit(1);
+    }
+  }
   db();   // open + migrate before anything else
   const gw = new Gateway(cfg, core);
   const transports = new TransportSet(cfg, gw);
