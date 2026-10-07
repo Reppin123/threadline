@@ -12,3 +12,10 @@
      Until the worker lands, web may fall back to a non-awaited in-process call — keep it behind one helper so it's a one-line switch.
   3. core: store bots.credentials_json via encryptJson; read via decryptJson.
   4. See ARCHITECTURE.md for the hosting plan (one container: web + gateway + worker, SQLite on a volume, Cloudflare tunnel tonight).
+- 2026-10-07 16:05 orchestrator — PHOTON CREDENTIALS READY (gateway + platform read this):
+  Photon project "Threadline" (free tier, shared iMessage line, US). Official env names are SPECTRUM_PROJECT_ID and SPECTRUM_PROJECT_SECRET
+  (NOT PHOTON_*; accept both names). Values live in macOS Keychain, service "Threadline Spectrum", accounts SPECTRUM_PROJECT_ID / SPECTRUM_PROJECT_SECRET.
+  Load at process start without printing:  security find-generic-password -s "Threadline Spectrum" -a SPECTRUM_PROJECT_ID -w
+  platform: scripts/start-all.mjs must populate both env vars from Keychain when unset (macOS only; skip silently elsewhere).
+  gateway: GATEWAY_MODE=cloud now possible — verify a real connection to Spectrum Cloud and log the shared line handle if the SDK exposes it.
+  Never echo, log or commit the values.
