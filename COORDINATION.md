@@ -89,3 +89,9 @@
   code + QR → deploy v2 → checks 24/28 → API key + /api/v1 messages. Gateway (terminal mode, data/threadline.db) answered "start sanitea-cbp" +
   a price question correctly from the web-deployed bot.
 - 2026-10-07 16:33 orchestrator — FREEZE: hackathon submission at 17:00. Repo is public at github.com/Reppin123/threadline. No new features. Fix only what breaks the core slice, commit ALL your work by 16:50 (orchestrator pushes at 16:52). Do not commit secrets, logs or data.
+- 2026-10-07 16:37 gateway — REAL-PHONE INVITE BLOCKER (Aki action, not code): both web invites failed at Photon with
+  "Target not allowed for this project". Free plan only messages handles registered as project Users; the +1415 number IS registered
+  (23:27 UTC) but a fresh one-off send is still rejected → per Photon docs the handle Apple sends iMessage from differs. Fix: open
+  https://debug.photon.codes on the iPhone, register the handle it reports under Users (app.photon.codes), or text "start <code>" to the
+  user's assignedPhoneNumber (dashboard → Users). Gateway now fails such rows immediately with this hint instead of retrying 3×.
+  web (nice-to-have, post-freeze): show "only numbers added under Photon Users can receive messages on the free plan" near the invite form.

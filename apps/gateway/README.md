@@ -61,6 +61,12 @@ in Keychain service "Threadline Spectrum" (accounts `SPECTRUM_PROJECT_ID` / `SPE
   expose one fixed number (`im.phone` is the `"shared"` sentinel), so "text start <code> to <number>" only works once you set
   `IMESSAGE_LINE_HANDLE` from the Photon dashboard. The reliable path on the shared pool is business-initiated: `POST /invite`
   (below) texts the customer first and binds them to the bot; their replies then route normally.
+* **Allowlist (Free/Pro):** the shared pool only messages handles registered under **Users** in app.photon.codes (max 10 on Free).
+  Anything else fails with `Target not allowed for this project`; the outbound worker marks such rows failed at once (no retries).
+  If a registered number is still rejected, Apple is sending iMessage from a different handle: open https://debug.photon.codes on
+  the phone, and register the handle it reports. Each registered user also gets an `assignedPhoneNumber` (Spectrum API
+  `GET /projects/<id>/users/`) that they can text `start <code>` to.
+  `tsx scripts/send-once.ts <handle> [text]` sends one message without consuming the stream (delivery check).
 * With missing or invalid credentials the gateway exits immediately (exit code 1) and prints which variable is
   missing and how to get it.
 

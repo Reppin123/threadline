@@ -89,7 +89,11 @@ export class OutboundWorker {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (attempt >= this.gw.cfg.maxSendAttempts) {
+      // Photon Free/Pro shared pool only messages handles registered as project Users; retrying can't help.
+      const notAllowed = /target not allowed/i.test(msg);
+      if (notAllowed || attempt >= this.gw.cfg.maxSendAttempts) {
+        if (notAllowed) log.warn(`${r.handle} is not an allowed recipient: add the exact handle Apple sends iMessage from ` +
+          "(check at https://debug.photon.codes) under Users in app.photon.codes, or `photon spectrum users add`.");
         run("UPDATE scheduled_messages SET status = 'failed', error = ? WHERE id = ?", [msg.slice(0, 500), r.id]);
         logEvent(r.bot_id, "scheduled_failed", { id: r.id, attempt, error: msg.slice(0, 300) });
         this.stats.failed++;

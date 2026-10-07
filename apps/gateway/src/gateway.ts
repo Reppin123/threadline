@@ -210,7 +210,7 @@ export class Gateway {
 
   /** Send each reply as its own bubble with small human-like pauses. Retries each send with backoff. */
   async sendBubbles(space: Space, b: PlatformBinding, replies: string[], botId: string | null, meta: Record<string, unknown> = {}) {
-    let sent = 0;
+    let sent = 0, lastErr = "";
     for (let i = 0; i < replies.length; i++) {
       if (i > 0 && this.cfg.bubbleDelayScale > 0) {
         space.startTyping().catch(() => {});
@@ -220,12 +220,13 @@ export class Gateway {
         await this.sendOne(space, b, replies[i]);
         sent++;
       } catch (e) {
+        lastErr = e instanceof Error ? e.message : String(e);
         this.fail(botId, "send", e, { bubble: i });
       }
     }
     this.stats.outbound += sent;
     if (sent) logEvent(botId, "message_out", { source: "gateway", channel: b.channel, platform: b.id, bubbles: sent, ...meta });
-    if (sent < replies.length) throw new SendError(`${replies.length - sent} of ${replies.length} bubbles failed`);
+    if (sent < replies.length) throw new SendError(`${replies.length - sent} of ${replies.length} bubbles failed: ${lastErr}`);
   }
 
   private sendOne(space: Space, b: PlatformBinding, text: string) {

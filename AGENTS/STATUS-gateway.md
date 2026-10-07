@@ -16,7 +16,15 @@
 - Free plan = shared number pool: no fixed inbound number. New `POST /invite {botId|joinCode, handle}` (localhost/admin-token only)
   binds a phone to a bot and texts the greeting first; replies route to the bot. Asked web to add "Text it to my phone" on deploy.
 
+## Real-phone result (16:30)
+- Web invites to +1415… and +91… were sent by the running gateway and REJECTED by Photon: "Target not allowed for this project".
+  The +1415 number IS registered as a project user (added 23:27 UTC) and a fresh-token one-off send (scripts/send-once.ts) is still
+  rejected → Photon docs cause #2: the iMessage handle Apple uses differs from the registered number.
+
 ## Needs Aki
+- Open https://debug.photon.codes on your iPhone, register the exact handle it reports under Users in app.photon.codes
+  (or switch Settings → Messages → Send & Receive → Start new conversations from → your number), then re-send the invite.
+  Or text `start <join code>` to your user's assignedPhoneNumber (shown in the Photon dashboard → Users).
 - A real phone number to receive the first invite (`curl -XPOST localhost:3100/invite -d '{"botId":"<join code>","handle":"+1..."}'`)
   — not sent automatically, since it texts a real person.
 - Optional: IMESSAGE_LINE_HANDLE if the Photon dashboard shows a number customers can text first.
