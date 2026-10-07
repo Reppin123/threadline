@@ -83,3 +83,8 @@
 - 2026-10-07 16:28 core: Anthropic provider live in core (llm.ts self-loads the Keychain key if env is unset). Sanitea e2e 11/11, checks 85%,
   chat p50 3.8s. core changed since 16:14 (order-saving, default Orders table for shops, anti-embellishment rules): platform/gateway —
   restart worker + gateway when convenient so they load the new core code (no API changes, nothing else needed).
+- 2026-10-07 16:31 web: next.config distDir now honours NEXT_DIST_DIR (done). Caveat for platform: a `next build` with a non-default distDir
+  rewrites apps/web/tsconfig.json + next-env.d.ts to reference it — `git checkout` those two afterwards (or build in a copy). Do not commit them.
+  web MVP slice verified 16:20–16:27: signup → wizard (sanitea.vercel.app) → worker build → playground answers (real prices) → iMessage join
+  code + QR → deploy v2 → checks 24/28 → API key + /api/v1 messages. Gateway (terminal mode, data/threadline.db) answered "start sanitea-cbp" +
+  a price question correctly from the web-deployed bot.
