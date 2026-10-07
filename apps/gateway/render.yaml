@@ -1,0 +1,33 @@
+# Example Render blueprint for the gateway alone (cloud mode). Copy to the repo root as render.yaml to use it.
+# The SQLite DB lives on the persistent disk; web must point THREADLINE_DB at the same file (same service/disk)
+# or the gateway must move to Postgres before web and gateway run on separate machines.
+services:
+  - type: web                      # "web" so /health and /spectrum/webhook are reachable
+    name: threadline-gateway
+    runtime: docker
+    dockerfilePath: ./apps/gateway/Dockerfile
+    dockerContext: .
+    plan: starter
+    numInstances: 1                # one consumer of the Spectrum stream + one outbound worker
+    healthCheckPath: /health
+    disk:
+      name: threadline-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: GATEWAY_MODE
+        value: cloud
+      - key: GATEWAY_INGEST
+        value: stream              # or "webhook" + register https://<service>.onrender.com/spectrum/webhook
+      - key: THREADLINE_DB
+        value: /data/threadline.db
+      - key: PHOTON_PROJECT_ID
+        sync: false
+      - key: PHOTON_PROJECT_SECRET
+        sync: false
+      - key: SPECTRUM_WEBHOOK_SECRET
+        sync: false
+      - key: IMESSAGE_LINE_HANDLE
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false

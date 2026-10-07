@@ -75,7 +75,8 @@ export function assertCloudConfig(cfg: GatewayConfig) {
         "  1. Sign up at https://app.photon.codes and create a project (Free plan: shared iMessage line, up to 10 users).",
         "  2. Copy the Project ID and Secret Key from the project's Settings page.",
         "  3. export PHOTON_PROJECT_ID=... PHOTON_PROJECT_SECRET=...  (SPECTRUM_PROJECT_ID/SECRET also accepted)",
-        "  4. Optional: IMESSAGE_LINE_HANDLE=<the line's phone/email> so help texts show it.",
+        "  4. Webhook ingest only: register https://<public-host>/spectrum/webhook in the dashboard (or `photon` CLI) and export SPECTRUM_WEBHOOK_SECRET=<signing secret>.",
+        "  5. Optional: IMESSAGE_LINE_HANDLE=<the line's phone/email> so help texts show it.",
         "Or run without credentials: GATEWAY_MODE=terminal (default) or GATEWAY_MODE=local on a Mac.",
       ].join("\n"),
     );

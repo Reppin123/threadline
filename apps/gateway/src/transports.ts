@@ -92,13 +92,23 @@ export class TransportSet {
     const { cfg } = this;
     assertCloudConfig(cfg);
     const { imessage } = await import("spectrum-ts/providers/imessage");
-    const app = await Spectrum({
-      projectId: cfg.photon.projectId!,
-      projectSecret: cfg.photon.projectSecret!,
-      providers: [imessage.config()],
-      webhookSecret: cfg.photon.webhookSecret,
-      options: { flattenGroups: true },
-    });
+    let app;
+    try {
+      app = await Spectrum({
+        projectId: cfg.photon.projectId!,
+        projectSecret: cfg.photon.projectSecret!,
+        providers: [imessage.config()],
+        webhookSecret: cfg.photon.webhookSecret,
+        options: { flattenGroups: true },
+      });
+    } catch (e: any) {
+      const detail = [...new Set([e?.status, e?.code].filter(Boolean).map(String))].join(" ");
+      throw new ConfigError(
+        `Photon Spectrum Cloud rejected the connection${detail ? ` (${detail})` : ""}: ${e?.message ?? e}\n` +
+        "  Check PHOTON_PROJECT_ID / PHOTON_PROJECT_SECRET against app.photon.codes → your project → Settings,\n" +
+        "  and that the project has iMessage enabled with at least one line.",
+      );
+    }
     const im = (imessage as any)(app);
     this.add("imessage-cloud", app, [{
       id: "imessage", channel: "imessage", routeChannel: "imessage", markdown: true,
@@ -162,7 +172,18 @@ export class TransportSet {
   private async startTerminal() {
     if (this.cfg.terminalUi === "tui") {
       const { terminal } = await import("spectrum-ts/providers/terminal");
-      const app = await Spectrum({ providers: [terminal.config({ commands: [{ name: "/stop", description: "Leave the current bot" }] })] });
+      // The provider downloads the tuichat binary from GitHub on first run (or uses TUICHAT_BINARY). If that fails, fall back.
+      let app;
+      try {
+        app = await Promise.race([
+          Spectrum({ providers: [terminal.config({ commands: [{ name: "/stop", description: "Leave the current bot" }] })] }),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error("timed out after 60s")), 60_000).unref()),
+        ]);
+      } catch (e) {
+        log.warn(`tuichat terminal UI unavailable (${e instanceof Error ? e.message : e}); using the plain terminal. ` +
+          "Set TUICHAT_BINARY=/path/to/tuichat to use a pre-downloaded binary (github.com/photon-hq/tuichat/releases).");
+        return this.startPlain();
+      }
       const t = (terminal as any)(app);
       this.add("terminal", app, [{
         id: "terminal", channel: "terminal", routeChannel: "terminal", markdown: false,
