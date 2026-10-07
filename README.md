@@ -1,5 +1,7 @@
 # Threadline — your app, on iMessage
 
+**Live demo:** https://yang-enters-supplement-incorporate.trycloudflare.com
+
 Give Threadline a website, an API / MCP server, or just an idea. It reads everything, builds an AI agent that knows the business,
 tests it against simulated customers, and deploys it to **iMessage** (Telegram / WhatsApp next) — so customers can text your business
 like a friend: ask questions, get recommendations, place orders, get reminders.
