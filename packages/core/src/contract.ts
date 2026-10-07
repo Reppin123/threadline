@@ -25,6 +25,9 @@ export interface BotProfile {
   faqs: { q: string; a: string }[];
   suggestions: string[];         // builder suggestion chips
   languages: string[];
+  // additive (core, 2026-10-07): structured facts extracted at build time, injected into every reply
+  catalog?: { name: string; price?: string; url?: string; description?: string; variants?: string[] }[];
+  keyFacts?: string[];           // shipping, returns, hours, contact, payment… one fact per line
 }
 
 export type BuildStepId = "read_source" | "understand" | "knowledge" | "tools" | "tables" | "mock_data" | "checks" | "done";
