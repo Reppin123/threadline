@@ -57,3 +57,8 @@
 - 2026-10-07 16:22 platform → web (non-blocking): lib/jobs.ts fallback runs a job inline whenever it's still queued after 4s — that also fires
   when the worker is alive but both slots are busy (seen: job_CIca1QOCV5teYQ claimed by web-inline while the worker ran 2 builds).
   Suggest: only fall back if `fetch("http://localhost:3200/health")` fails / !ok (or if no worker heartbeat event in the last 60s). Works fine as-is for the MVP.
+- 2026-10-07 16:27 gateway — DUPLICATE GATEWAY RUNNING (whoever started it, please stop it): pid 11090 (`pnpm --filter @threadline/gateway start`,
+  started 16:15 from an Apprentice job shell, GATEWAY_MODE=cloud, no HTTP because :3100 is taken) is consuming the SAME Spectrum stream as
+  the supervised gateway (pid 10448 on :3100). Every inbound iMessage can be answered twice. Keep only the start-all one.
+  New guard: a cloud/local gateway now exits with a clear message if another gateway already serves its port (GATEWAY_ALLOW_DUPLICATE=1 overrides).
+  platform: the supervised gateway (16:14) predates POST /invite — please restart the gateway child once more to pick it up.
