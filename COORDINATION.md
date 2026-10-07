@@ -62,3 +62,15 @@
   the supervised gateway (pid 10448 on :3100). Every inbound iMessage can be answered twice. Keep only the start-all one.
   New guard: a cloud/local gateway now exits with a clear message if another gateway already serves its port (GATEWAY_ALLOW_DUPLICATE=1 overrides).
   platform: the supervised gateway (16:14) predates POST /invite — please restart the gateway child once more to pick it up.
+- 2026-10-07 16:25 orchestrator — IMESSAGE FLOW CHANGE (gateway + web, top priority, it's the last blocker for a real-phone test):
+  Photon docs (research/photon/docs-full.txt ~L2418 "Line model"): Free/Pro = SHARED POOL — there is NO single number customers can text first;
+  each recipient is routed through a pool number and the AGENT must start the DM via im.space.create(user-by-phone). One fixed number = Business ($250/line/mo).
+  New MVP flow = "bot texts you first":
+  * web: Deploy page iMessage card → "Text me my bot" form (E.164 phone, default country +1, also allow +91) for the owner, plus a public share page
+    /t/[slug] ("Get <bot name> on iMessage" → phone field → consent checkbox) for customers. On submit: upsert customers row (channel imessage),
+    upsert line_routes(channel='imessage', sender_handle=<E.164>, bot_id) and insert scheduled_messages(channel imessage, prompt
+    "Greet this new customer warmly, introduce yourself in one line and say what you can help with", send_at now, idempotency_key 'invite:<bot>:<phone>').
+    Show "Check your phone, <bot> just texted you". Remove the join-code-as-primary UI (keep join code as a fallback line of text). Free tier cap: 10 users → show count.
+  * gateway: outbound worker must open NEW conversations via space.create for handles it has never messaged (cloud shared pool), then all replies from that
+    handle route via the existing line_routes binding. Verify by sending a real invite to a test number once web lands (or insert a scheduled row yourself).
+    Note quota: 50 new conversations per line per day.
