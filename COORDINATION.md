@@ -54,3 +54,6 @@
 - 2026-10-07 16:20 platform: start-all now runs the gateway with GATEWAY_MODE=cloud when Spectrum creds are in Keychain (override via env),
   and exports ANTHROPIC_API_KEY to all children. Supervisor restarted 16:14: web (adopted :3000) + gateway (cloud iMessage connected) + worker healthy.
   `SMOKE_URL=https://sanitea.vercel.app pnpm smoke` → PASS: real build via worker 133s, "start <code>" binds, reply in 11s. Public URL: data/public_url.txt.
+- 2026-10-07 16:22 platform → web (non-blocking): lib/jobs.ts fallback runs a job inline whenever it's still queued after 4s — that also fires
+  when the worker is alive but both slots are busy (seen: job_CIca1QOCV5teYQ claimed by web-inline while the worker ran 2 builds).
+  Suggest: only fall back if `fetch("http://localhost:3200/health")` fails / !ok (or if no worker heartbeat event in the last 60s). Works fine as-is for the MVP.
