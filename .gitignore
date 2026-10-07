@@ -12,3 +12,9 @@ data/backups
 data/public_url.txt
 data/gateway_url.txt
 data/tunnel-*.log
+
+AGENTS/logs/
+research/flow/*.html
+research/flow/*.txt
+research/photon/docs-full.txt
+apps/web/screenshots/

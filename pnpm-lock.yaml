@@ -10,9 +10,6 @@ importers:
 
   apps/gateway:
     dependencies:
-      '@spectrum-ts/imessage-local':
-        specifier: 12.10.1
-        version: 12.10.1(@spectrum-ts/core@12.10.1(typescript@5.9.3))(typescript@5.9.3)
       '@threadline/core':
         specifier: workspace:*
         version: link:../../packages/core
@@ -35,15 +32,28 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
+    optionalDependencies:
+      '@spectrum-ts/imessage-local':
+        specifier: 12.10.1
+        version: 12.10.1(@spectrum-ts/core@12.10.1(typescript@5.9.3))(typescript@5.9.3)
 
   apps/web:
     dependencies:
+      '@anthropic-ai/sdk':
+        specifier: ^0.131.0
+        version: 0.131.0(zod@4.6.5)
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.32.1
+        version: 1.32.1(zod@4.6.5)
       '@threadline/core':
         specifier: workspace:*
         version: link:../../packages/core
       '@threadline/db':
         specifier: workspace:*
         version: link:../../packages/db
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
       next:
         specifier: ^15.5.27
         version: 15.5.27(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -2216,11 +2226,13 @@ snapshots:
 
   '@opentelemetry/semantic-conventions@1.43.0': {}
 
-  '@parseaple/bplist@1.0.1': {}
+  '@parseaple/bplist@1.0.1':
+    optional: true
 
   '@parseaple/typedstream@2.0.2':
     dependencies:
       '@parseaple/bplist': 1.0.1
+    optional: true
 
   '@photon-ai/advanced-imessage@2.2.0(@grpc/grpc-js@1.14.5)(nice-grpc-common@2.0.4)(nice-grpc@2.1.17)':
     dependencies:
@@ -2235,6 +2247,7 @@ snapshots:
       '@parseaple/typedstream': 2.0.2
     optionalDependencies:
       better-sqlite3: 12.11.1
+    optional: true
 
   '@photon-ai/otel@3.8.1(typescript@5.9.3)':
     dependencies:
@@ -2329,6 +2342,7 @@ snapshots:
       '@spectrum-ts/core': 12.10.1(typescript@5.9.3)
       typescript: 5.9.3
       zod: 4.6.5
+    optional: true
 
   '@spectrum-ts/imessage@12.10.1(@spectrum-ts/core@12.10.1(typescript@5.9.3))(typescript@5.9.3)':
     dependencies:
