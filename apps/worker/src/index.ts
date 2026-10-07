@@ -28,7 +28,8 @@ const handlers: Record<string, Handler> = {
   },
   async run_checks(p) {
     requireBot(p.botId);
-    return await core.runChecks(p.botId, p.simulatedUsers ? { simulatedUsers: p.simulatedUsers } : undefined);
+    const opts = p.opts ?? (p.simulatedUsers ? { simulatedUsers: p.simulatedUsers } : undefined);
+    return await core.runChecks(p.botId, opts);
   },
 };
 // Test-only job used by scripts/test-worker.ts to prove graceful drain.
@@ -81,6 +82,12 @@ async function runJob(job: JobRow) {
     state.lastError = { jobId: job.id, type: job.type, error: String(e?.message || e), at: new Date().toISOString() };
     if (e instanceof NonRetryable) run("UPDATE jobs SET attempts=max_attempts WHERE id=?", [job.id]);
     failJob(job.id, msg);
+    const final = get<{ status: string }>("SELECT status FROM jobs WHERE id=?", [job.id])?.status === "failed";
+    if (final && (job.type === "build_bot" || job.type === "recrawl") && typeof payload.botId === "string") {
+      // core normally records its own error; make sure the UI never spins on 'building' forever.
+      run("UPDATE bots SET status='error', build_progress_json=? WHERE id=? AND status='building'", [
+        json.str({ step: "done", label: "Build failed", pct: 100, error: String(e?.message || e) }), payload.botId]);
+    }
     log(`failed ${job.type} ${job.id}: ${e?.message || e}`);
     try { logEvent(payload.botId ?? null, "job_failed", { jobId: job.id, type: job.type, error: String(e?.message || e) }); } catch {}
   } finally {

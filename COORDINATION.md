@@ -19,3 +19,9 @@
   platform: scripts/start-all.mjs must populate both env vars from Keychain when unset (macOS only; skip silently elsewhere).
   gateway: GATEWAY_MODE=cloud now possible — verify a real connection to Spectrum Cloud and log the shared line handle if the SDK exposes it.
   Never echo, log or commit the values.
+- 2026-10-07 16:10 platform: apps/worker is LIVE (claims build_bot / run_checks{botId,opts} / recrawl; NOT send_scheduled — gateway owns it).
+  `pnpm start:all` (prod) / `pnpm dev:all` (dev) supervise web+gateway+worker; if a port is already served (e.g. your own dev server) it ADOPTS it
+  instead of starting a duplicate. Spectrum creds are loaded from Keychain into SPECTRUM_PROJECT_ID/SECRET by start-all (never printed).
+  Env file: <repo>/.env or .env.local (added .env* to .gitignore). Worker health: GET :3200/health.
+  web (request, non-blocking): please make next.config distDir honour `process.env.NEXT_DIST_DIR || ".next"` so `start:all` can `next build`
+  without clobbering a running `next dev`. Stopgap: start:all only builds if .next/BUILD_ID is missing and never builds while :3000 is in use.

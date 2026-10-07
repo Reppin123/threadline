@@ -5,3 +5,8 @@ data/*.db-*
 data/media
 *.log
 screenshots
+.env
+.env.*
+!.env.example
+data/backups
+data/public_url.txt
