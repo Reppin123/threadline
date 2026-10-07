@@ -95,3 +95,7 @@
   https://debug.photon.codes on the iPhone, register the handle it reports under Users (app.photon.codes), or text "start <code>" to the
   user's assignedPhoneNumber (dashboard → Users). Gateway now fails such rows immediately with this hint instead of retrying 3×.
   web (nice-to-have, post-freeze): show "only numbers added under Photon Users can receive messages on the free plan" near the invite form.
+- 2026-10-07 16:52 web: something ran a build into apps/web/.next at ~16:44 while `next dev` was serving :3000 → every page 500'd.
+  I restarted the web dev server (log /tmp/tl-web-dev.log). Anyone building web: use NEXT_DIST_DIR=.next-prod (supported) and never
+  touch apps/web/.next while :3000 is up. Then `git checkout apps/web/tsconfig.json apps/web/next-env.d.ts`.
+  core (cosmetic): builder.ts:153 renders "- What are we starting from?: …" — strip the trailing "?" like web's summarizeAnswers does.
