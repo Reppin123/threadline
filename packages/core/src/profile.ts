@@ -83,6 +83,11 @@ Rules: tables only for things the owner asked for in the wizard (orders → "Ord
     name: String(t.name), description: String(t.description ?? ""), filled_by: t.filled_by === "owner" ? "owner" : "bot",
     columns: t.columns.map((c: any) => (typeof c === "string" ? { name: c } : { name: String(c.name), type: c.type ? String(c.type) : undefined })),
   }));
+  // A shop with no wizard answers still takes orders in chat ("Just a website" flow).
+  const noActionsChosen = !wizard.some((w) => /order|book|track|team|task|lead|reserv/i.test(JSON.stringify(w)));
+  if (noActionsChosen && (m.catalog?.length ?? 0) > 0 && !tables.some((t) => /order/i.test(t.name)))
+    tables.push({ name: "Orders", description: "Orders taken in chat. The bot fills it.", filled_by: "bot",
+      columns: ["Item", "Quantity", "Amount", "Customer name", "Phone", "Address", "Status", "Placed at"].map((name) => ({ name })) });
   const testQuestions = arr<any>(tb.testQuestions, []).filter((q) => q?.question).slice(0, 20).map((q) => ({ question: String(q.question), expected: String(q.expected ?? "") }));
   const mock = isIdea && tb.mock && Array.isArray(tb.mock.collections) ? tb.mock : undefined;
   return { profile, tables, testQuestions, mock };
