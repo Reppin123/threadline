@@ -83,6 +83,7 @@ export async function complete(opts: CompleteOpts): Promise<CompleteResult> {
   else if (p === "cli") r = await withRetry(() => cliComplete(opts), 2);
   else r = offlineComplete(opts);
   const res: CompleteResult = { ...r, provider: p, ms: Date.now() - t0 };
+  if (process.env.THREADLINE_DEBUG) console.error(`[llm] ${p} ${opts.tier ?? "smart"} ${res.ms}ms in=${res.usage.inputTokens} out=${res.usage.outputTokens} tools=${res.toolCalls.map((t) => t.name).join(",")}`);
   try { recordUsage(opts.botId ?? null, opts.category ?? "answering", res.usage); } catch { /* usage is best-effort */ }
   return res;
 }
@@ -90,7 +91,7 @@ export async function complete(opts: CompleteOpts): Promise<CompleteResult> {
 async function withRetry<T>(fn: () => Promise<T>, tries = 3): Promise<T> {
   let last: unknown;
   for (let i = 0; i < tries; i++) {
-    try { return await fn(); } catch (e) { last = e; await new Promise((r) => setTimeout(r, 800 * (i + 1))); }
+    try { return await fn(); } catch (e) { last = e; if (process.env.THREADLINE_DEBUG) console.error(`[llm] attempt ${i + 1} failed: ${(e as Error).message?.slice(0, 200)}`); await new Promise((r) => setTimeout(r, 800 * (i + 1))); }
   }
   throw last;
 }

@@ -167,7 +167,14 @@ export async function chat(input: ChatInput, opts: ChatOpts = {}): Promise<ChatR
       offline: offlineChat(config, knowledge),
     });
     costUsd += res.usage.costUsd;
-    if (!res.toolCalls.length) { final = parseFinal(res.text); break; }
+    if (!res.toolCalls.length) {
+      // occasionally the model ends a tool turn with no text at all — nudge once instead of sending a canned apology
+      if (!res.text.trim() && step < MAX_STEPS - 1 && !messages.some((m) => m.role === "user" && m.content.startsWith("[system: reply"))) {
+        messages.push({ role: "user", content: "[system: reply to the customer now, in the JSON format]" });
+        continue;
+      }
+      final = parseFinal(res.text); break;
+    }
     messages.push({ role: "assistant", content: res.text, toolCalls: res.toolCalls, raw: res.raw });
     for (const call of res.toolCalls) {
       const spec = config.tools.find((t) => t.name === call.name);
