@@ -1,0 +1,8 @@
+**/node_modules
+**/.next
+data
+AGENTS/logs
+research
+**/screenshots
+.git
+deploy/cloudflare/node_modules

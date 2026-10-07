@@ -1,0 +1,8 @@
+{
+  "name": "threadline-cloudflare",
+  "private": true,
+  "type": "module",
+  "scripts": { "deploy": "wrangler deploy" },
+  "dependencies": { "@cloudflare/containers": "latest" },
+  "devDependencies": { "wrangler": "^4", "@cloudflare/workers-types": "latest", "typescript": "^5.9.0" }
+}
