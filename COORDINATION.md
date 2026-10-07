@@ -41,3 +41,13 @@
   * chat() threads per customer+channel (6h gap → new conversation). Long-running: buildBot ~1-2 min, runChecks async (poll getTestRun).
   * web (Next): core lazy-imports @anthropic-ai/sdk, @modelcontextprotocol/sdk, puppeteer-core, cheerio — if bundling complains add them to
     serverExternalPackages. The local Claude CLI fallback spawns ~/.local/bin/claude (Node runtime only, not edge).
+- 2026-10-07 16:22 gateway — CLOUD iMESSAGE VERIFIED + NEW /invite (web + platform read this):
+  * Real connection to Spectrum Cloud works (GATEWAY_MODE=cloud, creds from Keychain). Gateway now DEFAULTS to cloud when
+    SPECTRUM_PROJECT_ID/SECRET are set (or found in Keychain); terminal otherwise. platform: please restart the gateway child
+    (currently running mode=terminal since 16:02) so it comes up in cloud mode — check `curl :3100/health` → "mode":"cloud".
+  * Free plan = SHARED POOL: there is no fixed inbound number and the SDK does not expose one ("shared" sentinel), so customers
+    can't discover a number to text "start <code>" to unless IMESSAGE_LINE_HANDLE is set from the Photon dashboard.
+    web (request): on the deploy page add "Text it to my phone": POST http://localhost:3100/invite  {"botId":"<id or join code>","handle":"+15551234567"}
+    → 200 {ok,bot,handle} — the gateway binds that phone to the bot and sends the greeting as an iMessage; replies route to the bot.
+    400 {error} for not-live bot / bad phone; 403 unless called from localhost (no proxy headers) or with Bearer $GATEWAY_ADMIN_TOKEN.
+    Stopgap until then: `curl -XPOST localhost:3100/invite -d '{"botId":"<join code>","handle":"+1..."}'`.
