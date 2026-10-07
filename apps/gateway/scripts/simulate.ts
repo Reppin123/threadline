@@ -321,6 +321,21 @@ await test("invite: business texts first (shared pool) → bound + greeted → c
   expect(rejected === 2, `rejected ${rejected}`);
 });
 
+await test("web 'text me my bot' rows (line_routes + scheduled greeting, text null) → DM opened → reply routes to the bot", async () => {
+  const h = "+15550009876";
+  run("INSERT OR REPLACE INTO line_routes(channel, sender_handle, bot_id) VALUES ('imessage', ?, ?)", [h, A.botId]);
+  const sid = id("sm_");
+  run(`INSERT INTO scheduled_messages(id, bot_id, customer_id, channel, prompt, text, send_at, idempotency_key)
+         VALUES (?,?,?,'imessage',?,NULL,datetime('now'),?)`,
+    [sid, A.botId, customerOf(A.botId, h), "Greet this new customer warmly, introduce yourself in one line and say what you can help with", `invite:${A.botId}:${h}`]);
+  await outbound.tick();
+  expect(row(sid).status === "sent" && textsTo(h).length === 1 && !!row(sid).text, `${JSON.stringify(row(sid))} / ${textsTo(h).join(" | ")}`);
+  expect(textsTo(h)[0] === row(sid).text, `bound to this bot, so no "<bot>:" prefix: ${textsTo(h)[0]}`);
+  const before = calls.length;
+  await say(h, "what are your hours?");
+  expect(calls.length === before + 1 && calls.at(-1)!.botId === A.botId && textsTo(h).length >= 2, textsTo(h).join(" | "));
+});
+
 await test("health snapshot is accurate", async () => {
   await say("+1005", "ping");
   const h = healthSnapshot(gw, transports, outbound);
