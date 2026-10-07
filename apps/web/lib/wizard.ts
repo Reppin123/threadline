@@ -50,5 +50,5 @@ export function deriveSource(answers: WizardAnswer[]): { source: BotSource } | {
 }
 
 export function summarizeAnswers(answers: WizardAnswer[]) {
-  return "Build my bot from these answers:\n" + answers.map((a) => `- ${a.question.replace(/\?$/, "")}: ${text(a.answer)}`).join("\n");
+  return "Build my bot from these answers:\n" + answers.map((a) => `- ${a.question.trim().replace(/[?:.…\s]+$/, "")}: ${text(a.answer)}`).join("\n");
 }
