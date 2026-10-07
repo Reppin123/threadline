@@ -98,11 +98,13 @@ export async function crawlWebsite(startUrl: string, opts: CrawlOpts = {}): Prom
   const t0 = Date.now();
   const useBfs = fromSitemap.length === 0;
   let headlessBudget = 10;
+  const retried = new Set<string>();
   async function worker() {
     while (queue.length && pages.length < maxPages) {
       const u = queue.shift()!;
       try {
-        const r = await fetchText(u, opts.timeoutMs ?? 10_000);
+        const r = await fetchText(u, opts.timeoutMs ?? 20_000);
+        if (r.status >= 500 && !retried.has(u)) { retried.add(u); queue.push(u); continue; }
         if (r.status >= 400 || !/html/i.test(r.type)) continue;
         let ex = extractPage(r.text, u);
         if (looksLikeShell(r.text, ex) && headlessBudget-- > 0) {
@@ -114,7 +116,11 @@ export async function crawlWebsite(startUrl: string, opts: CrawlOpts = {}): Prom
         opts.onPage?.(u, pages.length);
         if (process.env.THREADLINE_DEBUG) console.error(`[crawl] ${pages.length} ${u} ${Date.now() - t0}ms`);
         if (useBfs || queue.length < 5) ex.links.sort((a, b) => priority(a) - priority(b)).forEach(push);
-      } catch (e) { errors.push(`${u}: ${(e as Error).message}`); }
+      } catch (e) {
+        // slow/cold servers: retry once at the back of the queue
+        if (!retried.has(u)) { retried.add(u); queue.push(u); }
+        else errors.push(`${u}: ${(e as Error).message}`);
+      }
     }
   }
   await Promise.all(Array.from({ length: conc }, worker));

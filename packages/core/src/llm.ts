@@ -1,6 +1,6 @@
 // One LLM interface for every caller. Providers in order:
 // ANTHROPIC_API_KEY → OPENAI_API_KEY → local Claude CLI (dev) → "offline" deterministic stub (THREADLINE_LLM=offline).
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
@@ -37,7 +37,21 @@ export interface CompleteResult {
 
 export type ProviderName = "anthropic" | "openai" | "cli" | "offline";
 
+// macOS dev: pull ANTHROPIC_API_KEY from Keychain once if not in env (never logged).
+let _keychainTried = false;
+function loadKeychainKey() {
+  if (_keychainTried) return;
+  _keychainTried = true;
+  if (process.env.ANTHROPIC_API_KEY || process.platform !== "darwin" || process.env.THREADLINE_LLM === "offline") return;
+  try {
+    const k = execFileSync("security", ["find-generic-password", "-s", "Threadline Anthropic", "-a", "ANTHROPIC_API_KEY", "-w"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 }).trim();
+    if (k) process.env.ANTHROPIC_API_KEY = k;
+  } catch { /* not available */ }
+}
+
 export function providerName(): ProviderName {
+  loadKeychainKey();
   const forced = process.env.THREADLINE_LLM as ProviderName | undefined;
   if (forced && ["anthropic", "openai", "cli", "offline"].includes(forced)) return forced;
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
