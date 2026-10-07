@@ -2,7 +2,7 @@
 
 ## Checklist (Definition of Done)
 - [x] 1. `next build` passes (verified 16:31 via NEXT_DIST_DIR=.next-verify npx next build); dev serves every route; no browser console errors in e2e
-- [ ] 2. apps/web/scripts/e2e.mjs all green — 11/12 + earlier 11/13 runs; remaining: checks wait (page refresh, fixed 16:40) + dashboard (fixed, re-verifying)
+- [x] 2. apps/web/scripts/e2e.mjs all green — 16/16 in 404s at 16:57 (bot bot_fal9OnT9-ORGFA, real core + worker + Anthropic)
 - [x] 3. Works with the real core (all e2e runs since 16:15 use real core + Anthropic via worker)
 - [ ] 4. Visual polish pass
 
@@ -20,6 +20,9 @@
 - apps/web/lib/db.ts wraps @threadline/db all/get to return plain objects (node:sqlite rows are null-prototype → RSC error). Import db from "@/lib/db" in web.
 - Run e2e: `node apps/web/scripts/e2e.mjs` (needs :3000 web + worker; env SKIP_LANDING=1 SKIP_SEO=1 to focus on the app slice). Full run ≈ 8–11 min (build ~1.5 min, checks ~3 min).
 - Prod build check: `cd apps/web && NEXT_DIST_DIR=.next-verify npx next build` then `git checkout tsconfig.json next-env.d.ts`.
+
+## Next
+- Polish pass (DoD 4): compare screenshots vs Flow structure; empty/error states; Photon free-plan hint near invite form.
 
 ## Needs Aki
 - GOOGLE_CLIENT_ID/SECRET for real Google OAuth (button shows disabled state without them).
