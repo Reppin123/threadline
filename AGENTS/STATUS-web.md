@@ -21,7 +21,10 @@
 - Run e2e: `node apps/web/scripts/e2e.mjs` (needs :3000 web + worker; env SKIP_LANDING=1 SKIP_SEO=1 to focus on the app slice). Full run ≈ 8–11 min (build ~1.5 min, checks ~3 min).
 - Prod build check: `cd apps/web && NEXT_DIST_DIR=.next-verify npx next build` then `git checkout tsconfig.json next-env.d.ts`.
 
-## Next
+## Next (held for the 16:33 freeze)
+- Deploy page "Text me my bot" form + public /t/[slug] share page (orchestrator 16:25 spec): upsert customers + line_routes +
+  scheduled_messages invite row; show Photon free-plan note (only numbers under Photon Users can receive).
+- lib/jobs.ts: only fall back in-process if worker /health is down (platform 16:22).
 - Polish pass (DoD 4): compare screenshots vs Flow structure; empty/error states; Photon free-plan hint near invite form.
 
 ## Needs Aki
