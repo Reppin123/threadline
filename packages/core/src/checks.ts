@@ -144,13 +144,19 @@ async function judge(botId: string, cfg: BotConfig, p: Planned, transcript: { ro
   // retrieve on both sides: the customer's asks and the bot's claims (so true facts from other pages aren't judged "invented")
   const botText = transcript.filter((t) => t.role !== "user").map((t) => t.text).join(" ");
   const seen = new Set<string>();
-  const hits = [...await searchKnowledge(botId, userText, 6), ...await searchKnowledge(botId, botText.slice(0, 1500), 6)]
-    .filter((h) => { const k = h.text.slice(0, 120); if (seen.has(k)) return false; seen.add(k); return true; });
+  const botBubbles = transcript.filter((t) => t.role !== "user").map((t) => t.text).slice(-8);
+  const perBubble = await Promise.all(botBubbles.map((b) => searchKnowledge(botId, b.slice(0, 400), 2)));
+  const hits = [...await searchKnowledge(botId, userText, 6), ...await searchKnowledge(botId, botText.slice(0, 1500), 4), ...perBubble.flat()]
+    .filter((h) => { const k = h.text.slice(0, 120); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 18);
+  const pages = all<{ url: string }>("SELECT DISTINCT url FROM knowledge_docs WHERE bot_id=? AND url IS NOT NULL LIMIT 60", [botId]).map((d) => d.url);
   const truth = [
     cfg.profile.businessSummary,
     cfg.profile.keyFacts?.length ? "Key facts:\n" + cfg.profile.keyFacts.map((f) => "- " + f).join("\n") : "",
     cfg.profile.catalog?.length ? "Catalog:\n" + cfg.profile.catalog.map((c) => `- ${c.name}: ${c.price ?? "?"}${c.variants?.length ? ` (${c.variants.join("; ")})` : ""}`).join("\n") : "",
     cfg.profile.faqs.length ? "FAQs:\n" + cfg.profile.faqs.map((f) => `Q: ${f.q} A: ${f.a}`).join("\n") : "",
+    cfg.profile.capabilities?.length ? "What the bot is set up to do (allowed):\n" + cfg.profile.capabilities.map((c) => "- " + c).join("\n") : "",
+    cfg.tables.length ? "Tables the bot fills in chat (so it CAN take/record these itself): " + cfg.tables.map((t) => t.name).join(", ") : "",
+    pages.length ? "Pages that exist on the site:\n" + pages.join("\n") : "",
     hits.length ? "Relevant source excerpts:\n" + hits.map((h) => h.text.slice(0, 700)).join("\n---\n") : "",
   ].filter(Boolean).join("\n\n");
   const { data } = await completeJson<{ passed: boolean; notes: string }>({
