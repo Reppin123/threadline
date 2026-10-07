@@ -4,14 +4,24 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@spectrum-ts/imessage-local": "12.10.1",
     "@threadline/core": "workspace:*",
     "@threadline/db": "workspace:*",
-    "spectrum-ts": "12.10.1"
+    "spectrum-ts": "12.10.1",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/node": "^24.19.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p .",
+    "test": "tsx scripts/simulate.ts",
+    "simulate": "tsx scripts/simulate.ts"
+  },
+  "optionalDependencies": {
+    "@spectrum-ts/imessage-local": "12.10.1"
   }
 }
