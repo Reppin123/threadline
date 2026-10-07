@@ -1,0 +1,11 @@
+{
+  "name": "threadline",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm -r --parallel --filter ./apps/* dev",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "db:migrate": "node --experimental-strip-types packages/db/src/migrate.ts"
+  }
+}

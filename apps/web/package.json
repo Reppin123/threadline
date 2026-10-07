@@ -1,0 +1,7 @@
+{
+  "name": "@threadline/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@threadline/core": "workspace:*", "@threadline/db": "workspace:*" }
+}

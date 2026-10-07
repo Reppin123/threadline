@@ -1,0 +1,13 @@
+{
+  "name": "@threadline/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": { ".": "./src/index.ts", "./contract": "./src/contract.ts" },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "node --experimental-strip-types src/selftest.ts"
+  },
+  "dependencies": { "@threadline/db": "workspace:*" },
+  "devDependencies": { "typescript": "^5.9.0", "@types/node": "^24.0.0" }
+}
