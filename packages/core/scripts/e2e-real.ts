@@ -6,7 +6,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(here, "../../../AGENTS/core-e2e-transcript.md");
+const OUT = process.env.E2E_OUT || resolve(here, "../../../AGENTS/core-e2e-transcript.md");
 const DB = process.env.THREADLINE_DB || "/tmp/tl-core-e2e.db";
 const args = process.argv.slice(2);
 const only = args.find((a) => a.startsWith("--only="))?.slice(7);

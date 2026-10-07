@@ -4,7 +4,9 @@ import type { ToolSpec } from "../config.ts";
 import { fetchText } from "./website.ts";
 
 export async function loadSpec(url: string): Promise<any> {
-  const r = await fetchText(url, 15_000, "application/json, application/yaml, text/yaml, */*");
+  const accept = "application/json, application/yaml, text/yaml, */*";
+  // one retry: public spec hosts are often slow/cold
+  const r = await fetchText(url, 20_000, accept).catch(() => fetchText(url, 30_000, accept));
   if (r.status >= 400) throw new Error(`spec ${r.status}`);
   try { return JSON.parse(r.text); } catch { return YAML.parse(r.text); }
 }
