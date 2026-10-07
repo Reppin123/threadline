@@ -41,9 +41,13 @@ downloaded, set `TUICHAT_BINARY=/path/to/tuichat`.
 
 | `GATEWAY_MODE` | Transport | Needs |
 |---|---|---|
-| `terminal` (default) | `@spectrum-ts/terminal` TUI, or the built-in plain stdin/stdout provider | nothing |
+| `terminal` (default without creds) | `@spectrum-ts/terminal` TUI, or the built-in plain stdin/stdout provider | nothing |
 | `local` | `@spectrum-ts/imessage-local`: this Mac's Messages app (`~/Library/Messages/chat.db`) | macOS, Messages signed in, **Full Disk Access** |
-| `cloud` | `@spectrum-ts/imessage` (Spectrum Cloud shared line), plus `@spectrum-ts/telegram` per bot | `PHOTON_PROJECT_ID`, `PHOTON_PROJECT_SECRET` |
+| `cloud` (default when creds are set) | `@spectrum-ts/imessage` (Spectrum Cloud shared line), plus `@spectrum-ts/telegram` per bot | `PHOTON_PROJECT_ID`, `PHOTON_PROJECT_SECRET` |
+
+With `GATEWAY_MODE` unset the gateway picks `cloud` if `SPECTRUM_PROJECT_ID`/`SECRET` (or `PHOTON_*`) are in the env, or — on macOS —
+in Keychain service "Threadline Spectrum" (accounts `SPECTRUM_PROJECT_ID` / `SPECTRUM_PROJECT_SECRET`; values are never printed;
+`GATEWAY_NO_KEYCHAIN=1` disables the lookup). Otherwise it runs `terminal`.
 
 ### cloud
 * `GATEWAY_INGEST=stream` (default): consumes `app.messages` over Spectrum's gRPC stream. No public URL is needed.
@@ -53,6 +57,10 @@ downloaded, set `TUICHAT_BINARY=/path/to/tuichat`.
 * Telegram: every bot with `channels(channel='telegram', status='live')` and a token in `config_json`
   (`{"botToken":"123:ABC"}`) gets its own Spectrum app. A Telegram bot belongs to exactly one Threadline bot, so
   there are no join codes on Telegram. The gateway re-scans for new tokens every 60s.
+* **Free/Pro plans use a shared number pool**: each customer may be routed through a different number and the SDK does not
+  expose one fixed number (`im.phone` is the `"shared"` sentinel), so "text start <code> to <number>" only works once you set
+  `IMESSAGE_LINE_HANDLE` from the Photon dashboard. The reliable path on the shared pool is business-initiated: `POST /invite`
+  (below) texts the customer first and binds them to the bot; their replies then route normally.
 * With missing or invalid credentials the gateway exits immediately (exit code 1) and prints which variable is
   missing and how to get it.
 
@@ -136,11 +144,19 @@ channels this gateway serves:
     "startedAt": "…", "uptimeSec": 42, "lineHandle": null }
   ```
 * `POST /spectrum/webhook`: Spectrum Cloud deliveries (cloud mode).
+* `POST /invite` `{"botId":"<bot id or join code>","handle":"+15551234567"}` → `200 {ok, bot, handle, routeChannel}`: binds the
+  phone/email to the (live) bot and sends the greeting as the first message. `400` for a bot that isn't live or a bad handle,
+  `502` if the provider send fails. Only accepted from localhost without proxy headers, or with
+  `Authorization: Bearer $GATEWAY_ADMIN_TOKEN` (it texts real people, so it must not be open through the tunnel).
+  ```sh
+  curl -XPOST localhost:3100/invite -d '{"botId":"sanitea-dyk","handle":"+15551234567"}'
+  ```
 
 ## Environment variables
 | Var | Default | |
 |---|---|---|
-| `GATEWAY_MODE` | `terminal` | `terminal` \| `local` \| `cloud` |
+| `GATEWAY_MODE` | `cloud` if creds, else `terminal` | `terminal` \| `local` \| `cloud` |
+| `GATEWAY_ADMIN_TOKEN` | — | lets non-local callers use `POST /invite` |
 | `GATEWAY_INGEST` | `stream` | cloud only: `stream` \| `webhook` |
 | `PHOTON_PROJECT_ID`, `PHOTON_PROJECT_SECRET` | — | cloud (also accepts `SPECTRUM_PROJECT_ID/SECRET`) |
 | `SPECTRUM_WEBHOOK_SECRET` | — | webhook ingest |
