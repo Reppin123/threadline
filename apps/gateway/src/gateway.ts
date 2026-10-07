@@ -75,7 +75,16 @@ export class Gateway {
       this.spaces.set(`${binding.id}|${handle}`, space);
       this.stats.inbound++;
       this.lastMessageAt = new Date();
-      if (binding.id === "imessage") (message as any).read?.().catch?.(() => {});
+      if (binding.id === "imessage") {
+        (message as any).read?.().catch?.(() => {});
+        // Dedicated lines expose their number on the space; shared-pool lines report the "shared" sentinel.
+        const phone = (space as any).phone;
+        if (!this.cfg.lineHandle && typeof phone === "string" && /^\+?\d{8,15}$/.test(phone)) {
+          this.cfg.lineHandle = phone;
+          logEvent(null, "gateway_line_handle", { handle: phone });
+          log.info(`iMessage line number learned from traffic: ${phone}`);
+        }
+      }
       const key = `${binding.id}|${binding.fixedBotId ?? ""}|${handle}`;
       const item: Item = { space, message, binding, handle, at: Date.now() };
       const buf = this.buffers.get(key);
