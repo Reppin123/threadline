@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { json } from "@threadline/db";
+import { json } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { CHANNEL_LABEL, fmtDate, getBot, liveChannels } from "@/lib/data";
 import { runSummary, versionsOf } from "@/lib/versions";

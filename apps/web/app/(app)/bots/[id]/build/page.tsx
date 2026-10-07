@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { all, json } from "@threadline/db";
+import { all, json } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { getBot, profileOf, progressOf } from "@/lib/data";
 import { summarizeAnswers } from "@/lib/wizard";

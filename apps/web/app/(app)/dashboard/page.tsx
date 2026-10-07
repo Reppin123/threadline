@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { all } from "@threadline/db";
+import { all } from "@/lib/db";
 import { botCardStats, CHANNEL_LABEL, liveChannels, money, trialOf } from "@/lib/data";
 import { Sparkline } from "@/components/app/Sparkline";
 import { initials } from "@/components/app/TopBar";

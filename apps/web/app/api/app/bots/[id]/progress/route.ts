@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { currentUser } from "@/lib/auth";
-import { get, json } from "@threadline/db";
+import { get, json } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

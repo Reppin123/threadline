@@ -1,7 +1,7 @@
 import "./app.css";
 import { requireUser, appUrl } from "@/lib/auth";
 import { listBotsBasic, trialOf } from "@/lib/data";
-import { all } from "@threadline/db";
+import { all } from "@/lib/db";
 import { TopBar } from "@/components/app/TopBar";
 
 export const dynamic = "force-dynamic";

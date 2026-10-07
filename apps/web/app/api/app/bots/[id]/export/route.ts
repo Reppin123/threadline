@@ -1,4 +1,4 @@
-import { all, get, json } from "@threadline/db";
+import { all, get, json } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 import { rowsOf, tablesOf } from "@/lib/tables";
 

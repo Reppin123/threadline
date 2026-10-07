@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import { REPO_ROOT, get } from "@threadline/db";
+import { REPO_ROOT, get } from "@/lib/db";
 import { currentUser } from "@/lib/auth";
 
 export const runtime = "nodejs";

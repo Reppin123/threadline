@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import QRCode from "qrcode";
-import { get, json } from "@threadline/db";
+import { get, json } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { channelsOf, getBot, profileOf, fmtDate } from "@/lib/data";
 import { currentVersion, versionsOf } from "@/lib/versions";

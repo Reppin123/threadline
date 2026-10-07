@@ -1,6 +1,6 @@
 // POST /api/v1/bots/:id/messages — schedule an outbound message the bot writes itself from `prompt`.
 // The gateway's outbound worker delivers it at send_at (default: now).
-import { get, id as newId, run, logEvent } from "@threadline/db";
+import { get, id as newId, run, logEvent } from "@/lib/db";
 import { apiError, authorize } from "@/lib/api";
 
 export const runtime = "nodejs";

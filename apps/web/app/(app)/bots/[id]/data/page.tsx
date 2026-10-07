@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { all, get } from "@threadline/db";
+import { all, get } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { CHANNEL_LABEL, fmtDate, getBot, timeAgo } from "@/lib/data";
 import { rowsOf, tablesOf } from "@/lib/tables";

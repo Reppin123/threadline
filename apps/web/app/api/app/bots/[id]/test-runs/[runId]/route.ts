@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { core } from "@threadline/core";
 import { currentUser } from "@/lib/auth";
-import { get } from "@threadline/db";
+import { get } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -2,7 +2,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { all, get, id, json, run, tx, logEvent } from "@threadline/db";
+import { all, get, id, json, run, tx, logEvent } from "@/lib/db";
 import { core, type WizardAnswer, type ChatResult } from "@threadline/core";
 import { requireUser } from "@/lib/auth";
 import { getBot } from "@/lib/data";

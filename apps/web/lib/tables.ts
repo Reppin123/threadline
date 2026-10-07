@@ -1,5 +1,5 @@
 import "server-only";
-import { all, json } from "@threadline/db";
+import { all, json } from "@/lib/db";
 
 export interface TableInfo { id: string; name: string; description: string | null; filled_by: string; columns: string[]; saves7d: number; total: number }
 

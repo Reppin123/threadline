@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { get, run } from "@threadline/db";
+import { get, run } from "@/lib/db";
 import { createSession, findOrCreateUser, safeNext } from "@/lib/auth";
 
 export const runtime = "nodejs";

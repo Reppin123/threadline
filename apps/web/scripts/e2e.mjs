@@ -56,7 +56,7 @@ async function textOf(sel) { return page.$eval(sel, (e) => e.textContent?.trim()
 let botId = null;
 let exitCode = 0;
 try {
-  await step("landing page loads (desktop + mobile screenshots)", async () => {
+  if (!process.env.SKIP_LANDING) await step("landing page loads (desktop + mobile screenshots)", async () => {
     await go("/");
     await shot(page, "landing-desktop");
     await page.screenshot({ path: join(SHOTS, "landing-desktop-full.png"), fullPage: true });
@@ -72,7 +72,7 @@ try {
     return "ok";
   });
 
-  await step("SEO + legal pages, sitemap, robots", async () => {
+  if (!process.env.SKIP_SEO) await step("SEO + legal pages, sitemap, robots", async () => {
     const paths = ["/imessage-api", "/messaging-api", "/telegram-ai-agent", "/whatsapp-ai-agent", "/privacy", "/terms", "/sitemap.xml", "/robots.txt", "/login", "/signup"];
     for (const p of paths) {
       const r = await fetch(BASE + p);
@@ -139,12 +139,16 @@ try {
     const seen = new Set();
     const end = Date.now() + BUILD_TIMEOUT;
     while (Date.now() < end) {
-      if (await page.$("#builder-chat")) break;
-      const p = await page.$("#build-progress");
-      if (p) {
-        const label = await page.$eval("#build-progress", (e) => e.querySelector("p")?.textContent ?? "");
-        if (!seen.has(label)) { seen.add(label); log("   build:", label); if (seen.size === 1) await shot(page, "build-progress"); }
-        if (await page.$eval("#build-progress", (e) => e.textContent.includes("hit a snag"))) throw new Error("build failed: " + label);
+      try {
+        if (await page.$("#builder-chat")) break;
+        const p = await page.$("#build-progress");
+        if (p) {
+          const label = await page.$eval("#build-progress", (e) => e.querySelector("p")?.textContent ?? "");
+          if (!seen.has(label)) { seen.add(label); log("   build:", label); if (seen.size === 1) await shot(page, "build-progress"); }
+          if (await page.$eval("#build-progress", (e) => e.textContent.includes("hit a snag"))) throw new Error("build failed: " + label);
+        }
+      } catch (e) {
+        if (String(e?.message).startsWith("build failed")) throw e; // page navigated mid-poll (build done → builder): retry
       }
       await sleep(1500);
     }

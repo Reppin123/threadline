@@ -1,7 +1,7 @@
 // Read models for the logged-in app. All queries are scoped to the signed-in user.
 import "server-only";
 import { notFound } from "next/navigation";
-import { all, get, json } from "@threadline/db";
+import { all, get, json } from "@/lib/db";
 import type { BotProfile, BuildProgress } from "@threadline/core";
 
 export interface BotRow {

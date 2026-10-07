@@ -1,7 +1,7 @@
 // The one seam for slow work. Enqueue a durable job for apps/worker; if no worker claims it within a few seconds
 // (worker not running), claim it ourselves and run it in-process, without blocking the request.
 import "server-only";
-import { enqueueJob, claimJob, completeJob, failJob, get, run, json } from "@threadline/db";
+import { enqueueJob, claimJob, completeJob, failJob, get, run, json } from "@/lib/db";
 import { core } from "@threadline/core";
 
 const FALLBACK_AFTER_MS = Number(process.env.WEB_JOB_FALLBACK_MS || 4000);

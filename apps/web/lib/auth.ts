@@ -3,7 +3,7 @@ import "server-only";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { get, run, id } from "@threadline/db";
+import { get, run, id } from "@/lib/db";
 
 export const SESSION_COOKIE = "tl_session";
 const SESSION_DAYS = 30;

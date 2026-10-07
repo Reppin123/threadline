@@ -1,7 +1,7 @@
 // Public API helpers: Bearer key auth (sha256 lookup), JSON errors.
 import "server-only";
 import { createHash } from "node:crypto";
-import { get, run } from "@threadline/db";
+import { get, run } from "@/lib/db";
 
 export interface ApiAuth { keyId: string; userId: string; botId: string; canReadNotes: boolean }
 

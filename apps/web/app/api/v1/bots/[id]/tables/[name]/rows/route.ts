@@ -1,4 +1,4 @@
-import { all, get, json } from "@threadline/db";
+import { all, get, json } from "@/lib/db";
 import { apiError, authorize, pageParams } from "@/lib/api";
 
 export const runtime = "nodejs";

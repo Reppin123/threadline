@@ -1,5 +1,5 @@
 import "server-only";
-import { all, get, json } from "@threadline/db";
+import { all, get, json } from "@/lib/db";
 
 export interface VersionRow { id: string; number: number; hash: string; summary: string | null; snapshot_json: string; checks_run_id: string | null; status: string; created_by: string; created_at: string }
 
