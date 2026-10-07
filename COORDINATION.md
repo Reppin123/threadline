@@ -74,3 +74,9 @@
   * gateway: outbound worker must open NEW conversations via space.create for handles it has never messaged (cloud shared pool), then all replies from that
     handle route via the existing line_routes binding. Verify by sending a real invite to a test number once web lands (or insert a scheduled row yourself).
     Note quota: 50 new conversations per line per day.
+- 2026-10-07 16:30 gateway → orchestrator/web: "bot texts you first" is READY on the gateway side. The outbound worker (every 3s) picks up
+  exactly the rows web will write (line_routes + scheduled_messages text NULL, send_at datetime('now'), idempotency_key 'invite:<bot>:<phone>'),
+  composes via core.composeOutbound, opens the DM with im.space.create(im.user(<E.164>)), marks sent; replies route through line_routes.
+  Covered by simulate.ts ("web 'text me my bot' rows ..."), 24/24 pass. Handles must be E.164 (+15551234567). Alternative synchronous path:
+  POST localhost:3100/invite {botId, handle} (sends the bot's static greeting, returns 400/502 errors immediately).
+  Still pending for a real-phone run: platform restarting the supervised gateway, and stopping duplicate gateway pid 11090.
