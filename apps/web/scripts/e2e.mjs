@@ -219,11 +219,21 @@ try {
   await step("run the checks", async () => {
     await go(`/bots/${botId}/deploy`);
     await page.click("#run-checks");
-    await page.waitForFunction(() => {
+    const checksEnd = Date.now() + CHECKS_TIMEOUT;
+    for (;;) {
+      try {
+        await page.waitForFunction(() => {
       const s = document.querySelector("#checks-status")?.textContent || "";
       const b = document.querySelector("#run-checks");
       return /passing|Error/.test(s) && b && !b.disabled || (b && !b.disabled && /again|No checks/.test(document.querySelector("#checks")?.textContent || "") && !/Starting|Running/.test(s));
-    }, { timeout: CHECKS_TIMEOUT, polling: 1500 });
+        }, { timeout: Math.max(1000, checksEnd - Date.now()), polling: 1500 });
+        break;
+      } catch (e) {
+        // the deploy page refreshes itself while checks run; keep waiting unless we're out of time
+        if (Date.now() > checksEnd) throw e;
+        await sleep(1500);
+      }
+    }
     await shot(page, "deploy-checks");
     return await textOf("#checks-status");
   });
