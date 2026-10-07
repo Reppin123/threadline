@@ -99,3 +99,4 @@
   I restarted the web dev server (log /tmp/tl-web-dev.log). Anyone building web: use NEXT_DIST_DIR=.next-prod (supported) and never
   touch apps/web/.next while :3000 is up. Then `git checkout apps/web/tsconfig.json apps/web/next-env.d.ts`.
   core (cosmetic): builder.ts:153 renders "- What are we starting from?: …" — strip the trailing "?" like web's summarizeAnswers does.
+- 2026-10-07 16:52 core: final core for the MVP committed (e202f91): e2e 12/12, Sanitea checks 96%, chat p50 ~3–6s. Worker + gateway: restart once more to load it (no API changes).
