@@ -4,7 +4,7 @@ import { appUrl, createSession, findOrCreateUser, googleConfigured, safeNext, un
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  const fail = () => NextResponse.redirect(new URL("/login?error=google", req.url), 303);
+  const fail = () => NextResponse.redirect(new URL("/login?error=google", process.env.APP_URL || req.url), 303);
   if (!googleConfigured()) return fail();
   const raw = unsign(req.cookies.get("tl_oauth")?.value);
   const saved = raw ? (JSON.parse(raw) as { state: string; next: string }) : null;
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
     if (!info.email || info.email_verified === false) return fail();
     const u = findOrCreateUser(info.email, { name: info.name, avatar_url: info.picture });
     await createSession(u.id);
-    const res = NextResponse.redirect(new URL(safeNext(saved.next), req.url), 303);
+    const res = NextResponse.redirect(new URL(safeNext(saved.next), process.env.APP_URL || req.url), 303);
     res.cookies.delete("tl_oauth");
     return res;
   } catch {

@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   const next = safeNext(f.get("next"));
   const from = f.get("from") === "signup" ? "signup" : "login";
   if (!isEmail(email)) {
-    return NextResponse.redirect(new URL(`/${from}?error=email&next=${encodeURIComponent(next)}`, req.url), 303);
+    return NextResponse.redirect(new URL(`/${from}?error=email&next=${encodeURIComponent(next)}`, process.env.APP_URL || req.url), 303);
   }
   const { token, url } = createMagicLink(email, next);
   const sent = await sendMagicLinkEmail(email, url);
@@ -17,5 +17,5 @@ export async function POST(req: NextRequest) {
   const q = new URLSearchParams({ email });
   if (!sent && devLinksAllowed()) q.set("dev", token);
   if (!sent && !devLinksAllowed()) q.set("unsent", "1");
-  return NextResponse.redirect(new URL(`/login/check?${q}`, req.url), 303);
+  return NextResponse.redirect(new URL(`/login/check?${q}`, process.env.APP_URL || req.url), 303);
 }

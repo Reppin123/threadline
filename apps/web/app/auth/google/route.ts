@@ -5,7 +5,7 @@ import { appUrl, googleConfigured, safeNext, sign } from "@/lib/auth";
 export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
-  if (!googleConfigured()) return NextResponse.redirect(new URL("/login?error=google", req.url), 303);
+  if (!googleConfigured()) return NextResponse.redirect(new URL("/login?error=google", process.env.APP_URL || req.url), 303);
   const next = safeNext(req.nextUrl.searchParams.get("next"));
   const state = randomBytes(16).toString("base64url");
   const q = new URLSearchParams({

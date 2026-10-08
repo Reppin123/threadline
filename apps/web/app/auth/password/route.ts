@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   const name = String(f.get("name") || "").trim() || null;
   const next = safeNext(f.get("next"));
   const back = (error: string) =>
-    NextResponse.redirect(new URL(`/${mode}?error=${error}&method=password&email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`, req.url), 303);
+    NextResponse.redirect(new URL(`/${mode}?error=${error}&method=password&email=${encodeURIComponent(email)}&next=${encodeURIComponent(next)}`, process.env.APP_URL || req.url), 303);
 
   if (!isEmail(email)) return back("email");
   if (mode === "signup") {
@@ -27,5 +27,5 @@ export async function POST(req: NextRequest) {
     if (!u || !verifyPassword(password, u.password_hash)) return back("credentials");
     await createSession(u.id);
   }
-  return NextResponse.redirect(new URL(next, req.url), 303);
+  return NextResponse.redirect(new URL(next, process.env.APP_URL || req.url), 303);
 }

@@ -16,7 +16,7 @@ async function validSignature(v: string | undefined) {
 export async function middleware(req: NextRequest) {
   if (await validSignature(req.cookies.get("tl_session")?.value)) return NextResponse.next();
   const next = req.nextUrl.pathname + req.nextUrl.search;
-  return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, req.url), 303);
+  return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(next)}`, process.env.APP_URL || req.url), 303);
 }
 
 export const config = { matcher: ["/dashboard/:path*", "/bots/:path*"] };
