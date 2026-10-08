@@ -20,7 +20,11 @@ export default async function ConversationsPage({ params, searchParams }: { para
   const bot = getBot(user.id, id);
   const f = sp.f === "couldnt" || sp.f === "problems" ? sp.f : "all";
   const q = (sp.q || "").trim();
-  const allChannels = all<{ channel: string }>("SELECT DISTINCT channel FROM conversations WHERE bot_id=? AND is_test=0", [bot.id]).map((r) => r.channel);
+  // Channels with chats, plus every connected channel (so a newly connected Telegram shows up as a filter right away).
+  const allChannels = [...new Set([
+    ...all<{ channel: string }>("SELECT DISTINCT channel FROM conversations WHERE bot_id=? AND is_test=0", [bot.id]).map((r) => r.channel),
+    ...all<{ channel: string }>("SELECT channel FROM channels WHERE bot_id=? AND status='live' ORDER BY channel", [bot.id]).map((r) => r.channel),
+  ])];
   const chSel = sp.ch ? sp.ch.split(",").filter(Boolean) : allChannels;
 
   const where = ["c.bot_id=?", "c.is_test=0"];

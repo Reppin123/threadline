@@ -2,13 +2,12 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { connectChannel, disconnectChannel } from "@/app/(app)/actions";
-import { IApple, ITelegram, IWhatsApp } from "./icons";
+import { IApple, IWhatsApp } from "./icons";
+import { TelegramCard, TelegramShare, type TelegramState } from "./TelegramCard";
 
-export function ChannelCards(p: { botId: string; joinCode: string; handle: string | null; sms: string; qr: string; imessage: boolean; telegram: boolean; telegramHasToken: boolean }) {
+export function ChannelCards(p: { botId: string; joinCode: string; handle: string | null; sms: string; qr: string; imessage: boolean; tg: TelegramState; tgQr: string | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [tgOpen, setTgOpen] = useState(false);
-  const [token, setToken] = useState("");
   const [copied, setCopied] = useState(false);
   const act = (fn: () => Promise<unknown>) => start(async () => { await fn(); router.refresh(); });
   return (
@@ -27,24 +26,7 @@ export function ChannelCards(p: { botId: string; joinCode: string; handle: strin
             <button className="btn btn-blue" disabled={pending} onClick={() => act(() => connectChannel(p.botId, "imessage"))} id="connect-imessage">Connect iMessage</button>
           )}
         </div>
-        <div className="card ch-card">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span className="ch-ic" style={{ background: "#2aabee" }}><ITelegram /></span>
-            <div style={{ flex: 1 }}><b>Telegram</b><div className="muted" style={{ fontSize: 12.5 }}>{p.telegram ? "Connected" : "Not set up"}</div></div>
-            {p.telegram && <span className="pill pill-live">On</span>}
-          </div>
-          <p className="muted" style={{ fontSize: 13.5 }}>Make a bot with @BotFather, paste its token, and we answer on it.</p>
-          {p.telegram ? (
-            <button className="btn btn-sm" disabled={pending} onClick={() => act(() => disconnectChannel(p.botId, "telegram"))}>Turn off Telegram</button>
-          ) : tgOpen ? (
-            <form className="toolbar" style={{ margin: 0 }} onSubmit={(e) => { e.preventDefault(); if (token.trim()) act(() => connectChannel(p.botId, "telegram", { token: token.trim() })); }}>
-              <input className="input" placeholder="123456:ABC-DEF…" value={token} onChange={(e) => setToken(e.target.value)} aria-label="Telegram bot token" autoComplete="off" />
-              <button className="btn btn-sm btn-primary" disabled={pending || !/^\d+:[\w-]{20,}$/.test(token.trim())}>Connect</button>
-            </form>
-          ) : (
-            <button className="btn" onClick={() => setTgOpen(true)} id="connect-telegram">Connect Telegram</button>
-          )}
-        </div>
+        <TelegramCard botId={p.botId} tg={p.tg} />
         <div className="card ch-card">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span className="ch-ic" style={{ background: "#25d366" }}><IWhatsApp /></span>
@@ -84,6 +66,7 @@ export function ChannelCards(p: { botId: string; joinCode: string; handle: strin
           </figure>
         </div>
       )}
+      {p.tg.status === "live" && p.tg.username && p.tgQr && <TelegramShare username={p.tg.username} qr={p.tgQr} />}
     </>
   );
 }

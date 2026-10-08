@@ -8,6 +8,8 @@ import { currentVersion, versionsOf } from "@/lib/versions";
 import { diff } from "@/lib/diff";
 import { DiffList } from "@/components/app/DiffList";
 import { ChannelCards } from "@/components/app/ChannelCards";
+import type { TelegramState } from "@/components/app/TelegramCard";
+import { telegramConfig } from "@/lib/telegram";
 import { DeployButton } from "@/components/app/DeployButton";
 import { ChecksPanel } from "@/components/app/ChecksPanel";
 
@@ -28,7 +30,15 @@ export default async function DeployPage({ params }: { params: Promise<{ id: str
   const body = `START ${bot.join_code}`;
   const sms = handle ? `sms:${handle}?&body=${encodeURIComponent(body)}` : `sms:?&body=${encodeURIComponent(body)}`;
   const qr = await QRCode.toDataURL(sms, { margin: 1, width: 320, color: { dark: "#0b0c0f", light: "#ffffff" } });
-  const tg = channels.find((c) => c.channel === "telegram");
+  const tgRow = channels.find((c) => c.channel === "telegram");
+  const tgCfg = telegramConfig(tgRow?.config_json);
+  const tg: TelegramState = {
+    status: tgRow?.status === "live" ? "live" : tgRow?.status === "error" ? "error" : "off",
+    username: tgCfg.username ?? tgRow?.line_handle?.replace(/^@/, "") ?? null,
+  };
+  const tgQr = tg.status === "live" && tg.username
+    ? await QRCode.toDataURL(`https://t.me/${tg.username}`, { margin: 1, width: 320, color: { dark: "#0b0c0f", light: "#ffffff" } })
+    : null;
 
   const draft = { profile: profileOf(bot), web_access: !!bot.web_access };
   const curSnap = cur ? json.parse<any>(cur.snapshot_json, {}) : null;
@@ -72,7 +82,7 @@ export default async function DeployPage({ params }: { params: Promise<{ id: str
       </section>
 
       <section className="sec">
-        <div className="sec-head"><h2>Channels</h2><p>iMessage first. Your customers text one shared Threadline number with your code.</p></div>
+        <div className="sec-head"><h2>Channels</h2><p>iMessage and Telegram run the same bot, memory and tables. Connect either or both.</p></div>
         <ChannelCards
           botId={bot.id}
           joinCode={bot.join_code}
@@ -80,8 +90,8 @@ export default async function DeployPage({ params }: { params: Promise<{ id: str
           sms={sms}
           qr={qr}
           imessage={channels.find((c) => c.channel === "imessage")?.status === "live"}
-          telegram={tg?.status === "live"}
-          telegramHasToken={!!json.parse<any>(tg?.config_json, {})?.token}
+          tg={tg}
+          tgQr={tgQr}
         />
       </section>
 
