@@ -58,6 +58,26 @@ One machine, never auto-stopped (`min_machines_running = 1`). Don't `fly scale c
 New → Blueprint → this repo → `deploy/render.yaml`. Fill the `sync: false` secrets (APP_URL = your onrender.com URL).
 Persistent disks require a paid plan (starter+). Only the web port is public; the gateway uses stream ingest (outbound).
 
+## Persistence
+
+Cloudflare Containers (and Render free / any disk-less host) lose `/data` on every restart or redeploy, so the SQLite file is
+snapshotted to a **private Supabase Storage bucket** (`threadline-db`, project `threadline`, us-west-1). Code: `packages/db/src/snapshot.ts`.
+
+- **Restore** — `scripts/start-all.mjs` runs `restoreSnapshot()` *before* spawning web/gateway/worker. If `THREADLINE_DB` is missing
+  or empty it downloads `threadline-db/threadline.db`, runs `PRAGMA quick_check`, and moves it into place. 404 → fresh DB.
+- **Snapshot** — the start-all supervisor is the single uploader. It holds one idle read connection and every 30 s
+  (`SNAPSHOT_INTERVAL_MS`) checks `PRAGMA data_version`; if another process committed, it takes a consistent online copy with
+  node:sqlite `backup()` and upserts it. It also flushes on SIGTERM/SIGINT right away and once more after the children stopped.
+  Failures are logged (`start | snapshot: …`) and retried next tick; requests are never blocked.
+- **Safety** — if the restore failed (network/auth, not 404), the latest object is never overwritten; uploads go to history only.
+  One copy per hour is kept under `history/threadline.db/<YYYY-MM-DD-HH>.db` — to roll back, copy one over `threadline.db`
+  in the Supabase dashboard and restart the container.
+- **Config** — enabled only when `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` are set (Worker secrets, passed through in
+  `deploy/cloudflare/src/index.ts`). Optional: `SUPABASE_SNAPSHOT_BUCKET`, `SUPABASE_SNAPSHOT_OBJECT`. Local dev never snapshots
+  unless you export these yourself. Credentials live in the macOS Keychain item "Threadline Supabase".
+- **Limits** — at most ~30 s of writes can be lost on a hard kill. Single instance only (it's still one SQLite file).
+  Test: `SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… node packages/db/src/snapshot-test.ts` (uses a throwaway object).
+
 ## Environment
 
 | Var | Needed for |
@@ -71,6 +91,7 @@ Persistent disks require a paid plan (starter+). Only the web port is public; th
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | optional Google sign-in |
 | `RESEND_API_KEY`, `EMAIL_FROM` | optional real magic-link email |
 | `THREADLINE_DB` | defaults to `/data/threadline.db` in the image |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | off-box DB snapshots (see Persistence) — required on disk-less hosts |
 | `GATEWAY_MODE` | `cloud` (image default) \| `local` (macOS only) \| `terminal` |
 | `WEB_PORT`/`GATEWAY_PORT`/`WORKER_PORT` | 3000/3100/3200 |
 | `WORKER_CONCURRENCY` | parallel jobs (default 2) |

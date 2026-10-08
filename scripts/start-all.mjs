@@ -10,6 +10,7 @@ import { connect } from "node:net";
 import { existsSync, readFileSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { restoreSnapshot, startSnapshotter, snapshotEnabled } from "../packages/db/src/snapshot.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -108,6 +109,7 @@ function pipe(name, stream, out) {
 const services = ["web", "gateway", "worker"].filter((s) => !ONLY || ONLY.includes(s));
 const state = Object.fromEntries(services.map((s) => [s, { child: null, restarts: 0, backoff: 1000, startedAt: 0, timer: null }]));
 let shuttingDown = false;
+let snapshotter = { flush: async () => false, stop() {} }; // replaced once restore finished
 let gatewayStdin = null;
 if (process.stdin.isTTY && services.includes("gateway")) {
   process.stdin.on("data", (d) => { if (gatewayStdin?.writable) gatewayStdin.write(d); });
@@ -193,6 +195,8 @@ function killGroup(child, sig) {
 async function shutdown(sig) {
   if (shuttingDown) { say("start", "second signal — killing everything"); for (const s of services) if (state[s].child) killGroup(state[s].child, "SIGKILL"); process.exit(1); }
   shuttingDown = true;
+  // Snapshot right away (children may be killed hard later), then once more after they stopped cleanly.
+  const early = snapshotter.flush(`${sig}`);
   say("start", `${sig} — stopping ${services.join(", ")} (worker finishes in-flight jobs; up to 60s)`);
   const waits = [];
   for (const s of services) {
@@ -206,6 +210,9 @@ async function shutdown(sig) {
   await Promise.all(waits);
   clearTimeout(timeout);
   say("start", "all stopped");
+  await early;
+  await snapshotter.flush("final");
+  snapshotter.stop();
   process.exit(0);
 }
 process.on("SIGINT", () => shutdown("SIGINT"));
@@ -231,5 +238,11 @@ async function reportHealth() {
 }
 
 say("start", `mode=${DEV ? "dev" : "start"} gateway=${process.env.GATEWAY_MODE || "terminal"} db=${process.env.THREADLINE_DB} env=${envFiles.map((f) => f.replace(ROOT + "/", "")).join(",") || "(none)"}${keychainLoaded.length ? " keychain=" + keychainLoaded.join(",") : ""} services=${services.join(",")}`);
+// Persistence for disk-less containers (packages/db/src/snapshot.ts): restore BEFORE any child opens the DB; this supervisor is
+// the single uploader (periodic + on shutdown). No-op unless SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set.
+const snapLog = (m) => say("start", m);
+const restored = await restoreSnapshot(process.env.THREADLINE_DB, snapLog);
+snapshotter = startSnapshotter(process.env.THREADLINE_DB, { restored, log: snapLog });
+if (snapshotEnabled()) say("start", `snapshot: ${restored}; uploading changes every ${Math.round(Number(process.env.SNAPSHOT_INTERVAL_MS || 30000) / 1000)}s`);
 for (const s of services) start(s);
 reportHealth();

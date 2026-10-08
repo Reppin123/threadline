@@ -10,6 +10,10 @@ echo "== secrets"
 kc "Threadline Anthropic" ANTHROPIC_API_KEY | npx wrangler secret put ANTHROPIC_API_KEY >/dev/null && echo "set anthropic"
 kc "Threadline Spectrum" SPECTRUM_PROJECT_ID | npx wrangler secret put SPECTRUM_PROJECT_ID >/dev/null && echo "set spectrum id"
 kc "Threadline Spectrum" SPECTRUM_PROJECT_SECRET | npx wrangler secret put SPECTRUM_PROJECT_SECRET >/dev/null && echo "set spectrum secret"
-openssl rand -hex 32 | npx wrangler secret put AUTH_SECRET >/dev/null && echo "set auth"
+kc "Threadline Supabase" SUPABASE_URL | npx wrangler secret put SUPABASE_URL >/dev/null && echo "set supabase url"
+kc "Threadline Supabase" SUPABASE_SERVICE_ROLE_KEY | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY >/dev/null && echo "set supabase key"
+# Set once: it is also THREADLINE_ENCRYPTION_KEY, so rotating it would orphan encrypted creds in the persisted DB.
+if npx wrangler secret list 2>/dev/null | grep -q '"AUTH_SECRET"'; then echo "auth secret kept"
+else openssl rand -hex 32 | npx wrangler secret put AUTH_SECRET >/dev/null && echo "set auth"; fi
 grep -oE 'https://[a-z0-9.-]+\.workers\.dev' /tmp/threadline-cf-deploy.log | head -1 | tee ../../data/cloudflare_url.txt
 echo "== done"

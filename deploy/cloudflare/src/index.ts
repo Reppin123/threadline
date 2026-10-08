@@ -8,6 +8,9 @@ interface Env {
   SPECTRUM_PROJECT_SECRET: string;
   AUTH_SECRET: string;
   APP_URL: string;
+  // Persistence: the container has no disk, so start-all restores/snapshots /data/threadline.db to Supabase Storage.
+  SUPABASE_URL: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
 }
 
 export class App extends Container<Env> {
@@ -23,9 +26,14 @@ export class App extends Container<Env> {
       THREADLINE_ENCRYPTION_KEY: env.AUTH_SECRET,
       APP_URL: env.APP_URL,
       GATEWAY_MODE: "cloud",
+      // Demo: no email provider yet, so show the one-click sign-in link on the "check your email" screen.
+      THREADLINE_DEV_LINKS: "1",
+      NEXT_PUBLIC_SITE_URL: env.APP_URL,
       THREADLINE_MODEL: "claude-sonnet-5-5",
       THREADLINE_FAST_MODEL: "claude-haiku-5-5",
       THREADLINE_DB: "/data/threadline.db",
+      SUPABASE_URL: env.SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY: env.SUPABASE_SERVICE_ROLE_KEY,
     };
   }
 }

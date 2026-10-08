@@ -33,8 +33,9 @@ apps/web        Next.js 15 — site, auth, dashboard, public API
 apps/gateway    Photon Spectrum — iMessage (cloud / local Mac / terminal), routing, outbound
 apps/worker     Durable job queue — bot builds, checks, recrawls
 packages/core   The brain — ingest, profile, retrieval, tools, memory, runtime, checks, insights
-packages/db     SQLite (node:sqlite, WAL) schema + migrations + job queue + AES-GCM credential encryption
-deploy/         Dockerfile, docker-compose, fly.toml, render.yaml
+packages/db     SQLite (node:sqlite, WAL) schema + migrations + job queue + AES-GCM credential encryption;
+                persisted off-box as snapshots in Supabase Storage (restore on boot, upload every 30 s + on shutdown)
+deploy/         Dockerfile, docker-compose, fly.toml, render.yaml, cloudflare/ (live: Cloudflare Containers)
 ```
 More: [ARCHITECTURE.md](ARCHITECTURE.md) · [SPEC.md](SPEC.md) · [CONFIG.md](CONFIG.md) · [deploy/README.md](deploy/README.md) ·
 [apps/gateway/README.md](apps/gateway/README.md).
