@@ -5,7 +5,8 @@ The long-running service that puts every live Threadline bot on messaging channe
 the right bot, calls `core.chat()` and sends the replies back, and it delivers scheduled outbound messages.
 
 ```
-customer ──iMessage/Telegram/terminal──▶ Spectrum provider ──▶ app.messages / POST /spectrum/webhook
+customer ──iMessage/terminal──▶ Spectrum provider ──▶ app.messages / POST /spectrum/webhook
+customer ──Telegram──▶ getUpdates long poll (one per bot token) ──┘
    ▶ dedupe ▶ per-sender debounce (1.2s) ▶ per-sender serial queue ▶ router (join codes → line_routes)
    ▶ core.chat() inside space.responding() (typing…) ▶ one bubble per reply, with short human-like pauses
 scheduled_messages (due) ──▶ outbound worker ──▶ core.composeOutbound() if text is null ──▶ same send path
@@ -17,7 +18,7 @@ scheduled_messages (due) ──▶ outbound worker ──▶ core.composeOutboun
 export PATH=/opt/homebrew/bin:$PATH
 pnpm --filter @threadline/gateway dev            # tsx watch, GATEWAY_MODE=terminal (default)
 pnpm --filter @threadline/gateway start          # same without watch
-pnpm --filter @threadline/gateway test           # simulator: 22 end-to-end scenarios, no network
+pnpm --filter @threadline/gateway test           # simulator: 35 end-to-end scenarios (incl. a fake Telegram Bot API), no network
 ```
 
 You need a bot that is **live on iMessage** (`channels.channel='imessage' AND status='live'`); the dashboard's
@@ -43,7 +44,9 @@ downloaded, set `TUICHAT_BINARY=/path/to/tuichat`.
 |---|---|---|
 | `terminal` (default without creds) | `@spectrum-ts/terminal` TUI, or the built-in plain stdin/stdout provider | nothing |
 | `local` | `@spectrum-ts/imessage-local`: this Mac's Messages app (`~/Library/Messages/chat.db`) | macOS, Messages signed in, **Full Disk Access** |
-| `cloud` (default when creds are set) | `@spectrum-ts/imessage` (Spectrum Cloud shared line), plus `@spectrum-ts/telegram` per bot | `PHOTON_PROJECT_ID`, `PHOTON_PROJECT_SECRET` |
+| `cloud` (default when creds are set) | `@spectrum-ts/imessage` (Spectrum Cloud shared line) | `PHOTON_PROJECT_ID`, `PHOTON_PROJECT_SECRET` |
+
+Telegram runs in **every** mode alongside the above (see [Telegram](#telegram)).
 
 With `GATEWAY_MODE` unset the gateway picks `cloud` if `SPECTRUM_PROJECT_ID`/`SECRET` (or `PHOTON_*`) are in the env, or — on macOS —
 in Keychain service "Threadline Spectrum" (accounts `SPECTRUM_PROJECT_ID` / `SPECTRUM_PROJECT_SECRET`; values are never printed;
@@ -54,9 +57,6 @@ in Keychain service "Threadline Spectrum" (accounts `SPECTRUM_PROJECT_ID` / `SPE
 * `GATEWAY_INGEST=webhook`: Spectrum POSTs HMAC-signed deliveries to `POST /spectrum/webhook` on port 3100.
   Requires `SPECTRUM_WEBHOOK_SECRET`. The raw body is passed to `app.webhook()`, which verifies the signature and
   rejects bad signatures with 401. Deliveries are at-least-once, so the gateway dedupes on message id.
-* Telegram: every bot with `channels(channel='telegram', status='live')` and a token in `config_json`
-  (`{"botToken":"123:ABC"}`) gets its own Spectrum app. A Telegram bot belongs to exactly one Threadline bot, so
-  there are no join codes on Telegram. The gateway re-scans for new tokens every 60s.
 * **Free/Pro plans use a shared number pool**: each customer may be routed through a different number and the SDK does not
   expose one fixed number (`im.phone` is the `"shared"` sentinel), so "text start <code> to <number>" only works once you set
   `IMESSAGE_LINE_HANDLE` from the Photon dashboard. The reliable path on the shared pool is business-initiated: `POST /invite`
@@ -89,6 +89,40 @@ GATEWAY_MODE=local pnpm --filter @threadline/gateway start
   For a supervised setup, run it under the repo's process supervisor or `while true; do pnpm --filter @threadline/gateway start; sleep 2; done`.
 * `@spectrum-ts/imessage-local` is an **optionalDependency** that is loaded with a dynamic import only in local mode,
   so Linux and Docker installs use `--no-optional` and never build `better-sqlite3`.
+
+## Telegram
+Each Threadline bot can have its own Telegram bot. The owner connects it on **Deploy → Telegram**: open @BotFather, `/newbot`,
+paste the token (or the whole BotFather message). The web app checks it with `getMe`, refuses a token another Threadline bot is
+already using, and stores `encryptJson({token, username, tgBotId, name})` in `channels(bot_id,'telegram').config_json` with
+`status='live'` and `line_handle='@username'`. Customers open `t.me/<username>` (link + QR on the Deploy page).
+
+**Why long polling, not webhooks:** in the Cloudflare container only web :3000 is reachable from outside, so the gateway has no
+public inbound URL. `getUpdates` needs none, works the same on a laptop, and has no per-bot registration step that can drift.
+Spectrum's Telegram provider receives updates through Fusor webhooks (Photon credentials + registration per token), so the gateway
+talks to the Bot API directly (`src/telegram.ts`, no dependencies). Before polling it calls `deleteWebhook` (getUpdates is
+refused with 409 while a webhook is set).
+
+* **Sync without restarts:** every `GATEWAY_TELEGRAM_SYNC_MS` (5 s) the gateway reads live telegram channels and starts, stops or
+  restarts (token changed) one poller per bot. Disconnecting on the Deploy page sets `status='off'` and wipes the token; polling stops
+  within one sync.
+* **Bad or revoked token:** `getMe`/`getUpdates` answering 401/404 stops that poller, sets the channel to `status='error'` (the Deploy
+  page asks for a new token) and logs `telegram_token_rejected`. No restart loop.
+* **Messages:** private chats only (groups and other bots are ignored). Text, photos (largest size), documents, voice, audio and
+  video are downloaded via `getFile` and passed as attachments (caption → text); locations/venues → `location`; contacts → text.
+  `/start` (incl. deep-link payloads) sends the bot profile's greeting without calling core. The customer handle is the chat id and
+  the Telegram name is passed as `customerName`.
+* **Same pipeline as iMessage:** dedupe, debounce, the per-chat serial queue, `core.chat` with `channel: "telegram"`, one
+  `sendMessage` per reply bubble, retries and events. `sendChatAction typing` is refreshed every 4 s while core thinks.
+  Replies go out as plain text (light markdown stripped, so no MarkdownV2 escaping issues) and are split at 4096 chars.
+* **429:** every Bot API call waits `retry_after` and retries (up to 5×). Network errors back off 1 s → 30 s. One bad update is
+  logged as `gateway_error` and never stops the loop.
+* **Outbound:** `scheduled_messages` with `channel='telegram'` are delivered by the outbound worker through the bot's own token.
+* **One poller per token:** don't connect the same token to two running gateways (local + Cloudflare); Telegram lets only one
+  `getUpdates` consumer win (409), and the gateway just keeps retrying.
+* Tests: `scripts/fake-telegram.ts` is an in-process fake Bot API. The simulator covers /start, message → reply, burst ordering, 429,
+  attachments/locations, two bots with the same customer, scheduled sends, bad/revoked token and disconnect.
+  Full stack (web + gateway + headless Chrome, temp DB, fake API):
+  `pnpm --filter @threadline/gateway exec tsx ../web/scripts/telegram-e2e.ts`.
 
 ## Routing on one shared line
 All bots share one iMessage line, and customers pick a bot with its join code (`bots.join_code`, e.g. `bakery-7k2`):
@@ -179,6 +213,11 @@ channels this gateway serves:
 | `GATEWAY_MEDIA_DIR` | `<repo>/data/media` | |
 | `GATEWAY_LOG` | — | `silent` to mute gateway logs |
 | `TUICHAT_BINARY` | — | pre-downloaded tuichat for the TUI |
+| `GATEWAY_TELEGRAM` | on | `0` disables Telegram polling |
+| `GATEWAY_TELEGRAM_SYNC_MS` | `5000` | how often live telegram channels are re-read |
+| `GATEWAY_TELEGRAM_POLL_TIMEOUT` | `25` | getUpdates long-poll seconds |
+| `TELEGRAM_API_BASE` | `https://api.telegram.org` | Bot API base (tests point it at the fake); also read by web |
+| `THREADLINE_ENCRYPTION_KEY` / `AUTH_SECRET` | dev key | must match web's, to decrypt Telegram tokens |
 
 LLM keys (`ANTHROPIC_API_KEY`, etc.) are read by `@threadline/core`, not by the gateway.
 
@@ -203,8 +242,8 @@ LLM keys (`ANTHROPIC_API_KEY`, etc.) are read by `@threadline/core`, not by the 
   claim is safe across instances, but routing state such as debounce buffers is in-process.
 
 ## Files
-`src/main.ts` (entry) · `src/transports.ts` (Spectrum apps per mode, FDA check, Telegram sync) · `src/gateway.ts`
+`src/main.ts` (entry) · `src/transports.ts` (Spectrum apps per mode, FDA check, Telegram poller sync) · `src/telegram.ts` (Bot API client, poller, adapters) · `src/gateway.ts`
 (debounce, queue, routing, chat, bubbles, retries) · `src/router.ts` (join codes, line_routes, copy) ·
 `src/outbound.ts` (scheduled_messages worker) · `src/server.ts` (/health, webhook) · `src/platforms/memory.ts`
-(in-memory Spectrum platform for the simulator and plain terminal) · `scripts/simulate.ts` (tests) ·
+(in-memory Spectrum platform for the simulator and plain terminal) · `scripts/simulate.ts` (tests) · `scripts/fake-telegram.ts` (fake Bot API) ·
 `scripts/seed-demo.ts`.

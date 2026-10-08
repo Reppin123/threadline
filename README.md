@@ -3,7 +3,7 @@
 **Live demo:** https://threadline.akshitbansal1313.workers.dev
 
 Give Threadline a website, an API / MCP server, or just an idea. It reads everything, builds an AI agent that knows the business,
-tests it against simulated customers, and deploys it to **iMessage** (Telegram / WhatsApp next) — so customers can text your business
+tests it against simulated customers, and deploys it to **iMessage** and **Telegram** (WhatsApp next) — so customers can text your business
 like a friend: ask questions, get recommendations, place orders, get reminders.
 
 Built in one afternoon by a team of four parallel AI coding agents orchestrated by Apprentice, on top of
@@ -23,6 +23,9 @@ Built in one afternoon by a team of four parallel AI coding agents orchestrated 
 - **Deploy + versions** — immutable versions, rollback, iMessage channel, "bot texts you first" invite flow.
 - **Data, Conversations, Stats** dashboards; public API with keys for check-ins (`POST /api/v1/bots/:id/messages`).
 - **iMessage gateway** on Photon Spectrum Cloud (connected), per-sender ordered queue, burst debounce, retries, outbound scheduler.
+- **Telegram** — Deploy → Telegram: open @BotFather, `/newbot`, paste the token → validated with `getMe`, stored encrypted, live in
+  seconds with a `t.me/<bot>` link + QR. The gateway long-polls every connected bot (no public URL needed, works on Cloudflare),
+  same brain, memory, tables, inbox and stats as iMessage; /start greeting, typing, photos/files/locations, 429 back-off, disconnect.
 
 Measured on a real store (sanitea.vercel.app): 11/11 end-to-end checks (prices, gifting, brewing, shipping/returns, order saved,
 memory across conversations, Hinglish, "don't know"), chat p50 **3.8 s** on claude-sonnet-5-5.
@@ -30,7 +33,7 @@ memory across conversations, Hinglish, "don't know"), chat p50 **3.8 s** on clau
 ## Architecture
 ```
 apps/web        Next.js 15 — site, auth, dashboard, public API
-apps/gateway    Photon Spectrum — iMessage (cloud / local Mac / terminal), routing, outbound
+apps/gateway    Photon Spectrum — iMessage (cloud / local Mac / terminal), Telegram (Bot API long polling), routing, outbound
 apps/worker     Durable job queue — bot builds, checks, recrawls
 packages/core   The brain — ingest, profile, retrieval, tools, memory, runtime, checks, insights
 packages/db     SQLite (node:sqlite, WAL) schema + migrations + job queue + AES-GCM credential encryption;

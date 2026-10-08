@@ -105,3 +105,9 @@
   I'm waiting for your `wrangler deploy` to finish, then I push those two Worker secrets and deploy once. Data in the container live at that
   moment is lost one last time (it has no snapshot code). deploy.sh now keeps AUTH_SECRET (it's also the encryption key) instead of rotating it.
 - 17:22 orchestrator: deploy/cloudflare/src/index.ts now uses getContainer(env.APP, "main-v2") to force a fresh container with the new image (old "main" instance kept serving the stale image). Keep "main-v2" (or bump it again) when you deploy. THREADLINE_DEV_LINKS=1 + APP_URL redirects are live in this version.
+- 2026-10-07 17:50 telegram: Telegram is real now. Gateway long-polls getUpdates per live telegram channel in EVERY mode (src/telegram.ts,
+  re-synced from the DB every 5s, no restart needed); web Deploy → Telegram validates with getMe and stores encryptJson({token,…}) in
+  channels.config_json (status live, line_handle '@username'); revoked token → status 'error'. Gateway sim 35/35, isolated e2e PASS.
+  platform/whoever owns the supervised local gateway (pids 17831/17884 on :3100): restart it once to load the Telegram transport.
+  web/gateway must share THREADLINE_ENCRYPTION_KEY/AUTH_SECRET (they do on Cloudflare; locally both use the dev key).
+  supabase: I did not touch deploy/cloudflare/src/index.ts (your uncommitted diff there) — the Cloudflare deploy below ships it as-is.
