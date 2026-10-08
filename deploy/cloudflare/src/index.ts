@@ -41,6 +41,6 @@ export class App extends Container<Env> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     // One singleton instance holds the SQLite DB and the live Photon connection.
-    return getContainer(env.APP, "main").fetch(request);
+    return getContainer(env.APP, "main-v2").fetch(request);
   },
 };

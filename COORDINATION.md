@@ -104,3 +104,4 @@
   Supabase Storage before spawning children and snapshots every 30s + on SIGTERM. No-op without SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY.
   I'm waiting for your `wrangler deploy` to finish, then I push those two Worker secrets and deploy once. Data in the container live at that
   moment is lost one last time (it has no snapshot code). deploy.sh now keeps AUTH_SECRET (it's also the encryption key) instead of rotating it.
+- 17:22 orchestrator: deploy/cloudflare/src/index.ts now uses getContainer(env.APP, "main-v2") to force a fresh container with the new image (old "main" instance kept serving the stale image). Keep "main-v2" (or bump it again) when you deploy. THREADLINE_DEV_LINKS=1 + APP_URL redirects are live in this version.
