@@ -16,7 +16,7 @@ Long polling (`getUpdates`) per bot token inside the gateway, talking to the Tel
 - [x] Conversations filter shows Telegram
 - [x] Simulator: fake Telegram API (no network) — /start, message→reply, burst ordering, 429 retry, bad token, disconnect
 - [ ] Real bot test — no TELEGRAM_TEST_BOT_TOKEN in env or Keychain (see Needs Aki)
-- [ ] Deployed to Cloudflare; / and /login still serve
+- [x] Deployed to Cloudflare (version 6e525091, 17:46); live / → 200, /login → 200 "Sign in · Threadline"
 - [x] Docs: apps/gateway/README.md, README.md "What works today"
 
 ## Proof
@@ -26,6 +26,9 @@ Long polling (`getUpdates`) per bot token inside the gateway, talking to the Tel
   gateway picks it up without restart, /start greeting, question → reply (channel telegram), Conversations shows Telegram,
   mobile layout, disconnect → token wiped + polling stops. Screenshots: apps/web/screenshots/telegram-*.png (gitignored).
 - `pnpm typecheck` clean in apps/gateway and apps/web.
+
+## Not verified
+- The Telegram path on the live container end to end (that needs a real token; the Deploy page there makes real getMe calls).
 
 ## Needs Aki
 - Create a bot with @BotFather and paste its token on the Deploy page
