@@ -6,7 +6,7 @@
 - [x] scripts/start-all.mjs wired (restore before spawning children; supervisor = single uploader)
 - [x] Local round-trip test `node packages/db/src/snapshot-test.ts` → "snapshot round-trip ok (2/2 rows restored)"
 - [x] Local start-all cycle: insert row → interval upload → SIGTERM → delete DB → restart → row restored
-- [ ] Worker secrets pushed + deployed to Cloudflare
+- [x] Worker secrets pushed + deployed to Cloudflare (version fc262582, 00:31 UTC; first live snapshot 00:31:19)
 - [ ] Live: sign up → redeploy (new container) → user still exists
 - [x] Docs: deploy/README.md "## Persistence", README.md Architecture line
 
