@@ -32,6 +32,15 @@ export function liveBots(): RoutableBot[] {
   });
 }
 
+/** Any bot by id, regardless of channel (dedicated transports like Telegram don't need the iMessage line). */
+export function botById(id: string): RoutableBot | undefined {
+  const r = get<{ id: string; name: string; join_code: string; profile_json: string | null }>(
+    "SELECT id, name, join_code, profile_json FROM bots WHERE id = ?", [id]);
+  if (!r) return undefined;
+  const p = json.parse<{ name?: string; greeting?: string }>(r.profile_json, {});
+  return { id: r.id, name: p.name || r.name, joinCode: r.join_code, greeting: p.greeting || null };
+}
+
 export function liveBotCount(): number {
   return get<{ n: number }>(`SELECT COUNT(*) AS n FROM channels WHERE channel = 'imessage' AND status = 'live'`)?.n ?? 0;
 }

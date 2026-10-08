@@ -26,7 +26,10 @@ export interface PlatformBinding {
 }
 
 interface Item { space: Space; message: Message; binding: PlatformBinding; handle: string; at: number }
-interface Normalized { text: string; attachments: NonNullable<ChatInput["attachments"]>; location?: { lat: number; lng: number } }
+interface Normalized { text: string; attachments: NonNullable<ChatInput["attachments"]>; location?: { lat: number; lng: number }; name?: string }
+
+/** Bindings of dedicated transports (one per Telegram token) share a platform id, so key them by bot as well. */
+const bkey = (b: PlatformBinding) => b.id + (b.fixedBotId ? `#${b.fixedBotId}` : "");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -44,7 +47,11 @@ export class Gateway {
 
   constructor(readonly cfg: GatewayConfig, readonly core: CoreLike, readonly bindings = new Map<string, PlatformBinding>()) {}
 
-  addBinding(b: PlatformBinding) { this.bindings.set(b.id + (b.fixedBotId ? `#${b.fixedBotId}` : ""), b); }
+  addBinding(b: PlatformBinding) { this.bindings.set(bkey(b), b); }
+  removeBinding(b: PlatformBinding) {
+    if (this.bindings.get(bkey(b)) === b) this.bindings.delete(bkey(b));
+    for (const k of [...this.spaces.keys()]) if (k.startsWith(`${bkey(b)}|`)) this.spaces.delete(k);
+  }
 
   get queueDepth() {
     let buffered = 0;
@@ -74,7 +81,7 @@ export class Gateway {
       const raw = binding.handleOf ? binding.handleOf(space, message) : message.sender?.id ?? space.id;
       // Match the E.164/lowercased-email form web writes into line_routes ("tel:+1 555…" → "+1555…").
       const handle = binding.channel === "imessage" ? normalizeHandle(raw.replace(/^(tel|mailto|imessage|sms):/i, "")) ?? raw : raw;
-      this.spaces.set(`${binding.id}|${handle}`, space);
+      this.spaces.set(`${bkey(binding)}|${handle}`, space);
       this.stats.inbound++;
       this.lastMessageAt = new Date();
       if (binding.id === "imessage") {
@@ -140,11 +147,21 @@ export class Gateway {
         text: g.map((n) => n.text).filter(Boolean).join("\n"),
         attachments: g.flatMap((n) => n.attachments),
         location: g.find((n) => n.location)?.location,
+        name: g.findLast((n) => n.name)?.name,
       });
     };
     for (const it of items) {
       const n = await this.normalize(it);
       if (!n) continue;
+      n.name = (it.message.sender as { name?: string } | undefined)?.name || undefined;
+      // Dedicated bots (Telegram): "/start" is the client's first-open command → greet from the bot profile.
+      if (binding.fixedBotId && /^\/start(@\w+)?(\s|$)/i.test(n.text)) {
+        await flushGroup();
+        const bot = router.botById(binding.fixedBotId);
+        logEvent(binding.fixedBotId, "route_start", { channel: binding.channel, handle });
+        await this.sendBubbles(space, binding, [bot ? router.greetingText(bot) : "Hi! How can I help?"], binding.fixedBotId);
+        continue;
+      }
       const cmd = binding.fixedBotId || n.attachments.length ? { kind: "none" as const } : router.parseCommand(n.text);
       if (cmd.kind === "none") { group.push(n); continue; }
       await flushGroup();
@@ -195,7 +212,7 @@ export class Gateway {
     }
     if (!n.text && !n.attachments.length) return;
     logEvent(botId, "message_in", { source: "gateway", channel: b.channel, platform: b.id, handle, chars: n.text.length, attachments: n.attachments.length });
-    const input: ChatInput = { botId, channel: b.channel, customerHandle: handle, text: n.text, attachments: n.attachments.length ? n.attachments : undefined, location: n.location };
+    const input: ChatInput = { botId, channel: b.channel, customerHandle: handle, customerName: n.name, text: n.text, attachments: n.attachments.length ? n.attachments : undefined, location: n.location };
     let result: ChatResult | undefined;
     try {
       result = await space.responding(() => this.retry(() => this.core.chat(input), 2, 800));
@@ -256,7 +273,7 @@ export class Gateway {
     const { space, binding } = await this.spaceFor(!hasChannel && this.cfg.mode === "terminal" ? "terminal" : channel, h, bot.id);
     const currentId = router.boundBotId(binding.routeChannel, h);
     router.bind(binding.routeChannel, h, bot.id);
-    this.spaces.set(`${binding.id}|${h}`, space);
+    this.spaces.set(`${bkey(binding)}|${h}`, space);
     logEvent(bot.id, "route_invite", { channel: binding.routeChannel, handle: h, from: currentId ?? null });
     await this.sendBubbles(space, binding, [router.greetingText(bot) + router.switchedSuffix], bot.id);
     return { bot: bot.name, handle: h, routeChannel: binding.routeChannel };
@@ -266,7 +283,7 @@ export class Gateway {
     const candidates = [...this.bindings.values()].filter((b) => b.channel === channel && (!b.fixedBotId || b.fixedBotId === botId));
     if (!candidates.length) throw new Error(`no ${channel} transport connected in GATEWAY_MODE=${this.cfg.mode}`);
     for (const b of candidates) {
-      const s = this.spaces.get(`${b.id}|${handle}`);
+      const s = this.spaces.get(`${bkey(b)}|${handle}`);
       if (s) return { space: s, binding: b };
     }
     const b = candidates.find((c) => c.resolveSpace);
@@ -284,12 +301,13 @@ export class Gateway {
       case "voice": {
         try {
           const path = await saveMedia(it, c);
-          return { text: "", attachments: [{ path, mime: c.mimeType, name: c.name }] };
+          return { text: String(c.caption ?? "").trim(), attachments: [{ path, mime: c.mimeType, name: c.name }] };
         } catch (e) {
           this.fail(null, "attachment", e);
           return { text: `[sent ${c.type === "voice" ? "a voice note" : `a file: ${c.name ?? "attachment"}`} that couldn't be downloaded]`, attachments: [] };
         }
       }
+      case "location": return { text: c.title ? `[shared a location: ${c.title}]` : "[shared a location]", attachments: [], location: { lat: Number(c.lat), lng: Number(c.lng) } };
       case "poll": return { text: `[poll] ${c.title ?? ""}`, attachments: [] };
       default: return null;
     }

@@ -16,6 +16,7 @@ const { Gateway } = await import("../src/gateway.ts");
 const { TransportSet, addSimTransport } = await import("../src/transports.ts");
 const { OutboundWorker } = await import("../src/outbound.ts");
 const { healthSnapshot } = await import("../src/server.ts");
+const router = await import("../src/router.ts");
 type ChatInput = import("@threadline/core").ChatInput;
 type ChatResult = import("@threadline/core").ChatResult;
 
@@ -344,6 +345,177 @@ await test("health snapshot is accurate", async () => {
   expect(h.queueDepth === 0 && h.lastMessageAt && Date.now() - Date.parse(h.lastMessageAt) < 5000, JSON.stringify(h));
   expect(h.scheduledDue === 0, `scheduledDue ${h.scheduledDue}`);
 });
+
+// ---------- Telegram (fake Bot API, no network) ----------
+const { encryptJson } = await import("@threadline/db");
+const { FakeTelegram } = await import("./fake-telegram.ts");
+const { splitText, toPlainText } = await import("../src/telegram.ts");
+const tg = new FakeTelegram();
+process.env.TELEGRAM_API_BASE = await tg.start();
+process.env.GATEWAY_TELEGRAM_POLL_TIMEOUT = "1";
+process.env.TELEGRAM_RETRY_AFTER_SCALE = "0.05";
+const TOK_A = "111111:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", TOK_B = "222222:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+tg.addBot(TOK_A, "barber_sim_bot");
+tg.addBot(TOK_B, "tea_sim_bot");
+const connectTg = (botId: string, token: string) =>
+  run(`INSERT INTO channels(bot_id, channel, status, line_handle, config_json) VALUES (?, 'telegram', 'live', NULL, ?)
+         ON CONFLICT(bot_id, channel) DO UPDATE SET status = 'live', config_json = excluded.config_json`, [botId, encryptJson({ token })]);
+const tgTransport = (botId: string) => transports.list.find((t) => t.name === `telegram:${botId}`);
+async function until(cond: () => boolean, ms = 4000) {
+  const end = Date.now() + ms;
+  while (!cond() && Date.now() < end) await sleep(20);
+  return cond();
+}
+async function tgSettle() { await sleep(120); await settle(); await sleep(60); await settle(); }
+const CHAT = 424242;
+
+await test("telegram: live channel with an ENCRYPTED token → poller starts without restart (getMe, deleteWebhook, getUpdates)", async () => {
+  connectTg(A.botId, TOK_A);
+  const raw = get<{ config_json: string }>("SELECT config_json FROM channels WHERE bot_id=? AND channel='telegram'", [A.botId])!.config_json;
+  expect(raw.startsWith("v1:") && !raw.includes(TOK_A), "token must be stored encrypted");
+  await transports.syncTelegram();
+  expect(await until(() => tgTransport(A.botId)?.status === "connected" && tg.pollers(TOK_A) > 0), JSON.stringify(transports.health()));
+  const calls0 = tg.calls.filter((c) => c.token === TOK_A).map((c) => c.method);
+  expect(calls0[0] === "getMe" && calls0[1] === "deleteWebhook", calls0.join(","));
+  expect(transports.channels().includes("telegram"), transports.channels().join(","));
+});
+
+await test("telegram: /start → greeting from the bot profile, core not called", async () => {
+  const n = calls.length;
+  tg.text(TOK_A, CHAT, "/start");
+  await until(() => tg.textsTo(TOK_A, CHAT).length === 1);
+  await tgSettle();
+  const greet = router.botById(A.botId)!;
+  expect(tg.textsTo(TOK_A, CHAT).length === 1 && tg.textsTo(TOK_A, CHAT)[0] === toPlainText(router.greetingText(greet)), JSON.stringify(tg.textsTo(TOK_A, CHAT)));
+  expect(calls.length === n, "core.chat must not run for /start");
+});
+
+await test("telegram: message → core.chat(channel telegram, chat id, name) → one sendMessage per bubble + typing action", async () => {
+  const before = tg.textsTo(TOK_A, CHAT).length, n = calls.length;
+  tg.text(TOK_A, CHAT, "how much is a fade?");
+  await until(() => calls.length > n);
+  await tgSettle();
+  const c = calls.at(-1)!;
+  expect(c.botId === A.botId && c.channel === "telegram" && c.customerHandle === String(CHAT) && c.customerName === "Casey Customer" && c.text === "how much is a fade?", JSON.stringify(c));
+  const r = results.at(-1)!;
+  const got = tg.textsTo(TOK_A, CHAT).slice(before);
+  expect(got.length === r.replies.filter((x) => x.trim()).length && got.length > 0, `bubbles ${JSON.stringify(got)} vs ${JSON.stringify(r.replies)}`);
+  expect(tg.actions.some((a) => a.token === TOK_A && a.chat_id === String(CHAT) && a.action === "typing"), "sendChatAction typing while thinking");
+  if (!useEcho) {
+    const conv = get<{ n: number }>(`SELECT COUNT(*) n FROM conversations c JOIN customers cu ON cu.id = c.customer_id WHERE c.bot_id = ? AND c.channel = 'telegram' AND cu.handle = ?`, [A.botId, String(CHAT)])!.n;
+    expect(conv === 1, `conversation row on channel telegram: ${conv}`);
+  }
+});
+
+await test("telegram: burst ordering — slow first turn, second message waits its turn; replies stay in order", async () => {
+  const chat = CHAT + 1;
+  delayFor = (t) => (t === "first" ? 500 : 0);
+  const n = calls.length;
+  tg.text(TOK_A, chat, "first");
+  await until(() => calls.length > n);         // first turn is in flight (slow)
+  tg.text(TOK_A, chat, "second");
+  await until(() => calls.length >= n + 2, 5000);
+  await tgSettle();
+  delayFor = () => 0;
+  expect(calls.slice(n).map((c) => c.text).join(",") === "first,second", `call order ${calls.slice(n).map((c) => c.text)}`);
+  const got = tg.textsTo(TOK_A, chat);
+  if (useEcho) expect(got[0] === "echo: first" && got[2] === "echo: second", `reply order ${JSON.stringify(got)}`);
+  else expect(got.length >= 2, "both answered");
+  // and a quick burst (inside the debounce window) is ONE turn
+  const m = calls.length;
+  tg.text(TOK_A, chat, "hi"); tg.text(TOK_A, chat, "need to move my cut");
+  await until(() => calls.length > m); await tgSettle();
+  expect(calls.length === m + 1 && calls.at(-1)!.text === "hi\nneed to move my cut", `burst: ${calls.slice(m).map((c) => c.text)}`);
+});
+
+await test("telegram: 429 retry_after → waits and re-sends, reply delivered once", async () => {
+  const chat = CHAT + 2;
+  tg.fail429 = 1;
+  const sendsBefore = tg.calls.filter((c) => c.token === TOK_A && c.method === "sendMessage").length;
+  tg.text(TOK_A, chat, "rate limit me");
+  await until(() => tg.textsTo(TOK_A, chat).length > 0); await tgSettle();
+  const sends = tg.calls.filter((c) => c.token === TOK_A && c.method === "sendMessage").length - sendsBefore;
+  expect(tg.textsTo(TOK_A, chat).length >= 1 && tg.fail429 === 0 && sends === tg.textsTo(TOK_A, chat).length + 1, `sends=${sends} got=${JSON.stringify(tg.textsTo(TOK_A, chat))}`);
+});
+
+await test("telegram: photo+caption → attachment & caption; location → location; group/bad updates ignored, loop survives", async () => {
+  const chat = CHAT + 3;
+  tg.files.set("ph_big", Buffer.from("fakejpegbytes"));
+  tg.push(TOK_A, chat, { photo: [{ file_id: "ph_small", width: 90 }, { file_id: "ph_big", width: 1280 }], caption: "can you do this cut?" });
+  await until(() => calls.at(-1)?.customerHandle === String(chat)); await tgSettle();
+  const c = calls.at(-1)!;
+  const att = c.attachments?.[0];
+  expect(c.text === "can you do this cut?" && att?.mime === "image/jpeg" && att.path && existsSync(att.path), JSON.stringify(c));
+  rmSync(att!.path!, { force: true });
+  tg.push(TOK_A, chat, { location: { latitude: 51.5, longitude: -0.12 } });
+  await until(() => !!calls.at(-1)?.location); await tgSettle();
+  expect(calls.at(-1)!.location?.lat === 51.5 && calls.at(-1)!.location?.lng === -0.12, JSON.stringify(calls.at(-1)));
+  const n = calls.length, errs = gw.stats.errors;
+  tg.push(TOK_A, -100123, { chat: { id: -100123, type: "group" }, text: "group spam" });
+  tg.push(TOK_A, chat, { poll: { question: "?" } });                         // unsupported → ignored
+  tg.push(TOK_A, chat, { document: { file_id: "missing", file_name: "x.pdf", mime_type: "application/pdf" } }); // download fails
+  await until(() => calls.length > n); await tgSettle();
+  expect(calls.length === n + 1 && /couldn't be downloaded/.test(calls.at(-1)!.text), `bad file → note to bot: ${JSON.stringify(calls.slice(n))}`);
+  tg.text(TOK_A, chat, "still alive?");
+  await until(() => calls.at(-1)?.text === "still alive?");
+  expect(calls.at(-1)!.text === "still alive?" && gw.stats.errors >= errs, "poller keeps going after bad updates");
+});
+
+await test("telegram: two Threadline bots, same Telegram user → each answers through its OWN token", async () => {
+  connectTg(B.botId, TOK_B);
+  await transports.syncTelegram();
+  await until(() => tgTransport(B.botId)?.status === "connected");
+  const a0 = tg.textsTo(TOK_A, CHAT).length;
+  tg.text(TOK_B, CHAT, "do you have green tea?");
+  await until(() => tg.textsTo(TOK_B, CHAT).length > 0); await tgSettle();
+  expect(calls.at(-1)!.botId === B.botId && tg.textsTo(TOK_B, CHAT).length > 0 && tg.textsTo(TOK_A, CHAT).length === a0, "replies must go via bot B's token only");
+});
+
+await test("telegram: scheduled_messages(channel telegram) → sendMessage to the chat", async () => {
+  let cu = get<{ id: string }>("SELECT id FROM customers WHERE bot_id=? AND channel='telegram' AND handle=?", [A.botId, String(CHAT)]);
+  if (!cu) { cu = { id: id("cu_") }; run("INSERT INTO customers(id, bot_id, channel, handle) VALUES (?,?,'telegram',?)", [cu.id, A.botId, String(CHAT)]); }
+  const sid = id("sm_");
+  run(`INSERT INTO scheduled_messages(id, bot_id, customer_id, channel, prompt, text, send_at) VALUES (?,?,?,'telegram','x',?,datetime('now','-1 second'))`,
+    [sid, A.botId, cu.id, "Reminder: **Friday 3pm** haircut"]);
+  const before = tg.textsTo(TOK_A, CHAT).length;
+  await outbound.tick();
+  expect(row(sid).status === "sent", JSON.stringify(row(sid)));
+  expect(tg.textsTo(TOK_A, CHAT).slice(before).join("|") === "Reminder: Friday 3pm haircut", `plain text, no markdown: ${tg.textsTo(TOK_A, CHAT).slice(before)}`);
+});
+
+await test("telegram: bad/revoked token → channel marked 'error', poller stops, no restart loop", async () => {
+  const C = await liveBot("Bakery that takes cake orders");
+  connectTg(C.botId, "999999:NOPENOPENOPENOPENOPENOPENOPENOPENOPE");
+  await transports.syncTelegram();
+  expect(await until(() => get<{ status: string }>("SELECT status FROM channels WHERE bot_id=? AND channel='telegram'", [C.botId])?.status === "error"), "status should become error");
+  expect(!!get("SELECT 1 FROM events WHERE bot_id=? AND type='telegram_token_rejected'", [C.botId]), "event logged");
+  await transports.syncTelegram();
+  expect(!tgTransport(C.botId), "dropped after sync");
+  // revoked while polling
+  tg.revoke(TOK_B);
+  expect(await until(() => get<{ status: string }>("SELECT status FROM channels WHERE bot_id=? AND channel='telegram'", [B.botId])?.status === "error", 5000), "revoked token → error");
+  await transports.syncTelegram();
+  expect(!tgTransport(B.botId) && !gw.bindings.has(`telegram#${B.botId}`), "binding removed");
+});
+
+await test("telegram: disconnect (status off) → poller stops within one sync, no more replies, outbound skips", async () => {
+  run("UPDATE channels SET status='off' WHERE bot_id=? AND channel='telegram'", [A.botId]);
+  await transports.syncTelegram();
+  expect(!tgTransport(A.botId) && !transports.channels().includes("telegram"), transports.channels().join(","));
+  await sleep(1300);                            // any in-flight long poll has returned
+  const polls = tg.pollers(TOK_A), n = calls.length;
+  tg.text(TOK_A, CHAT, "anyone there?");
+  await sleep(1500);
+  expect(tg.pollers(TOK_A) === polls && calls.length === n, `still polling after disconnect: ${polls} → ${tg.pollers(TOK_A)}`);
+});
+
+await test("telegram: helpers — 4096 split on boundaries, markdown stripped", async () => {
+  const long = Array.from({ length: 900 }, (_, i) => `word${i}`).join(" ");
+  const parts = splitText(long);
+  expect(parts.length === 2 && parts.every((p) => p.length <= 4096) && parts.join(" ") === long, `${parts.map((p) => p.length)}`);
+  expect(toPlainText("**Hi** see [menu](https://x.co/m) `code`") === "Hi see menu (https://x.co/m) code", toPlainText("**Hi** see [menu](https://x.co/m) `code`"));
+});
+tg.stop();
 
 await transports.stop();
 console.log(`\n${passed} passed, ${failed} failed`);

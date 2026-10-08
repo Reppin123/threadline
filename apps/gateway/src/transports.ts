@@ -4,11 +4,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { Spectrum, type Message, type Space, type SpectrumInstance } from "spectrum-ts";
-import { all, json } from "@threadline/db";
+import { all, logEvent, run } from "@threadline/db";
 import { assertCloudConfig, ConfigError, type GatewayConfig } from "./config.ts";
 import type { Gateway, PlatformBinding } from "./gateway.ts";
 import { memoryClient, sim, stdio } from "./platforms/memory.ts";
 import { log } from "./log.ts";
+import { TelegramApi, TelegramPoller, telegramBinding, telegramMessage, telegramSpace, telegramToken } from "./telegram.ts";
 
 type AnyApp = SpectrumInstance<any>;
 
@@ -20,11 +21,13 @@ export interface Transport {
   error?: string;
   botId?: string;
   connectedAt?: Date;
+  telegram?: { api: TelegramApi; poller: TelegramPoller; binding: PlatformBinding };
 }
 
 export class TransportSet {
   list: Transport[] = [];
   private telegramTimer: NodeJS.Timeout | null = null;
+  private telegramSyncing = false;
 
   constructor(readonly cfg: GatewayConfig, readonly gw: Gateway) {}
 
@@ -37,6 +40,7 @@ export class TransportSet {
   health() {
     return this.list.map((t) => ({
       name: t.name, status: t.status, platforms: [...t.bindings.keys()], botId: t.botId,
+      ...(t.telegram?.poller.me ? { username: t.telegram.poller.me.username } : {}),
       connectedAt: t.connectedAt?.toISOString() ?? null, ...(t.error ? { error: t.error } : {}),
     }));
   }
@@ -83,9 +87,12 @@ export class TransportSet {
 
   async start() {
     const { cfg } = this;
-    if (cfg.mode === "cloud") return this.startCloud();
-    if (cfg.mode === "local") return this.startLocal();
-    return this.startTerminal();
+    if (cfg.mode === "cloud") await this.startCloud();
+    else if (cfg.mode === "local") await this.startLocal();
+    else await this.startTerminal();
+    // Telegram runs in every mode: it only needs bot tokens from the DB (polling, no Photon credentials, no public URL).
+    await this.syncTelegram();
+    this.telegramTimer = setInterval(() => void this.syncTelegram(), Number(process.env.GATEWAY_TELEGRAM_SYNC_MS || 5000));
   }
 
   private async startCloud() {
@@ -115,40 +122,78 @@ export class TransportSet {
       resolveSpace: async (h) => im.space.create(await im.user(h)),
     }], { pump: cfg.ingest === "stream" });
     log.info(`cloud iMessage connected (ingest=${cfg.ingest}${cfg.ingest === "webhook" ? `, POST :${cfg.port}/spectrum/webhook` : ""})`);
-    await this.syncTelegram();
-    this.telegramTimer = setInterval(() => void this.syncTelegram(), 60_000);
   }
 
-  /** One Spectrum app per bot with a Telegram token in channels.config_json (each token is its own bot, no join codes). */
+  /** One getUpdates poller per live Telegram channel (see telegram.ts). Re-synced from the DB every GATEWAY_TELEGRAM_SYNC_MS,
+   *  so connecting, changing or disconnecting a token on the Deploy page takes effect without a restart. */
   async syncTelegram() {
-    const { cfg } = this;
-    const rows = all<{ bot_id: string; config_json: string | null }>(`SELECT bot_id, config_json FROM channels WHERE channel = 'telegram' AND status = 'live'`);
-    const want = new Map<string, string>();
-    for (const r of rows) {
-      const c = json.parse<Record<string, string>>(r.config_json, {});
-      const token = c.botToken || c.token || c.bot_token;
-      if (token) want.set(r.bot_id, token);
-    }
-    for (const t of this.list.filter((t) => t.name.startsWith("telegram:") && t.status !== "stopped")) {
-      if (!want.has(t.botId!)) { t.status = "stopped"; await t.app.stop().catch(() => {}); log.info(`telegram bot ${t.botId} disconnected`); }
-    }
-    const { telegram } = await import("spectrum-ts/providers/telegram");
-    for (const [botId, botToken] of want) {
-      if (this.list.some((t) => t.name === `telegram:${botId}` && t.status !== "stopped" && t.status !== "error")) continue;
-      this.list = this.list.filter((t) => t.name !== `telegram:${botId}`);
-      try {
-        const app = await Spectrum({ projectId: cfg.photon.projectId!, projectSecret: cfg.photon.projectSecret!, providers: [telegram.config({ botToken })] });
-        const tg = (telegram as any)(app);
-        this.add(`telegram:${botId}`, app, [{
-          id: "telegram", channel: "telegram", routeChannel: "telegram", markdown: true, fixedBotId: botId,
-          resolveSpace: async (h) => tg.space.create(await tg.user(h)),
-        }], { pump: true, botId });
-        log.info(`telegram connected for bot ${botId}`);
-      } catch (e) {
-        this.list.push({ name: `telegram:${botId}`, app: null as any, bindings: new Map(), status: "error", botId, error: e instanceof Error ? e.message : String(e) });
-        this.gw.fail(botId, "telegram.connect", e);
+    if (this.telegramSyncing || process.env.GATEWAY_TELEGRAM === "0") return;
+    this.telegramSyncing = true;
+    try {
+      const rows = all<{ bot_id: string; config_json: string | null }>(`SELECT bot_id, config_json FROM channels WHERE channel = 'telegram' AND status = 'live'`);
+      const want = new Map<string, string>();
+      for (const r of rows) {
+        let token: string | null = null;
+        try { token = telegramToken(r.config_json); } catch (e) { this.gw.fail(r.bot_id, "telegram.config", e); }
+        if (token) want.set(r.bot_id, token);
       }
+      for (const t of this.list.filter((t) => t.name.startsWith("telegram:"))) {
+        if (t.status !== "stopped" && want.get(t.botId!) === t.telegram?.api.token) continue;
+        await this.dropTelegram(t, t.status === "stopped" ? null : want.has(t.botId!) ? "token changed" : "disconnected");
+      }
+      for (const [botId, token] of want) {
+        if (this.list.some((t) => t.name === `telegram:${botId}`)) continue;
+        this.startTelegram(botId, token);
+      }
+    } catch (e) {
+      this.gw.fail(null, "telegram.sync", e);
+    } finally {
+      this.telegramSyncing = false;
     }
+  }
+
+  private startTelegram(botId: string, token: string) {
+    const api = new TelegramApi(token);
+    const binding = telegramBinding(api, botId);
+    const t = this.add(`telegram:${botId}`, { stop: async () => {} } as unknown as AnyApp, [binding], { pump: false, botId });
+    t.status = "connecting";
+    const poller = new TelegramPoller(api, {
+      onUpdate: (u) => {
+        if (t.status === "connecting") { t.status = "connected"; t.connectedAt = new Date(); }
+        const message = telegramMessage(api, botId, u);
+        if (!message) { this.gw.stats.ignored++; return; }
+        this.gw.ingest(telegramSpace(api, String(u.message!.chat.id)), message, binding);
+      },
+      onFatal: (e) => {
+        t.status = "error";
+        t.error = `Telegram rejected the bot token (${e.message}). Paste a new token on the Deploy page.`;
+        this.gw.removeBinding(binding);
+        // Surface it on the Deploy page; the sync loop ignores non-live channels, so this doesn't restart-loop.
+        run(`UPDATE channels SET status = 'error', updated_at = datetime('now') WHERE bot_id = ? AND channel = 'telegram' AND status = 'live'`, [botId]);
+        logEvent(botId, "telegram_token_rejected", { error: e.message.slice(0, 200) });
+        log.warn(`telegram bot ${botId}: token rejected, channel marked error`);
+      },
+      onError: (e) => {
+        if (t.status === "connected" || t.status === "connecting") t.error = e instanceof Error ? e.message : String(e);
+        this.gw.fail(botId, "telegram.poll", e);
+      },
+    });
+    t.telegram = { api, poller, binding };
+    t.app = { stop: () => poller.stop() } as unknown as AnyApp;
+    poller.start();
+    // getMe succeeds before the first (long) getUpdates returns → mark connected as soon as we know who we are.
+    void (async () => {
+      for (let i = 0; i < 100 && !poller.me && !poller.stopped; i++) await new Promise((r) => setTimeout(r, 100));
+      if (poller.me && t.status === "connecting") { t.status = "connected"; t.connectedAt = new Date(); t.error = undefined; }
+      if (poller.me) log.info(`telegram connected for bot ${botId} as @${poller.me.username}`);
+    })();
+  }
+
+  private async dropTelegram(t: Transport, why: string | null) {
+    if (t.telegram) this.gw.removeBinding(t.telegram.binding);
+    this.list = this.list.filter((x) => x !== t);
+    if (t.status !== "stopped") { t.status = "stopped"; await t.app.stop().catch(() => {}); }
+    if (why) log.info(`telegram bot ${t.botId} ${why}`);
   }
 
   private async startLocal() {
