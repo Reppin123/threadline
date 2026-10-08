@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threadline: your app, on iMessage</title>
+<style>
+:root {
+  --paper: #f6f5f1; --paper-2: #efede6; --card: #ffffff; --ink: #0b0c0f; --ink-2: #3a3c42; --muted: #6b6e76; --faint: #9a9ca3;
+  --line: #e4e2db; --line-2: #d6d3ca; --blue: #0a7cff; --blue-soft: #e6f1ff; --green: #1fae5b; --green-soft: #e3f6ea;
+  --amber: #d98a00; --amber-soft: #fff3dc; --red: #d93b3b; --violet: #6c5ce7; --violet-soft: #efedff; --tg: #2aabee; --bubble-gray: #e9e9eb;
+  --shadow: 0 1px 2px rgba(11,12,15,.05), 0 8px 24px -8px rgba(11,12,15,.12);
+  --shadow-lg: 0 2px 4px rgba(11,12,15,.04), 0 24px 60px -18px rgba(11,12,15,.25);
+  --sans: -apple-system, "SF Pro Text", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  --display: "Instrument Serif", "Iowan Old Style", "Palatino", Georgia, serif;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { background: #1b1c20; font-family: var(--sans); color: var(--ink); -webkit-font-smoothing: antialiased; }
+.deck { position: relative; }
+.slide {
+  width: 1280px; height: 720px; position: relative; overflow: hidden; background: var(--paper);
+  padding: 52px 72px 64px; display: flex; flex-direction: column;
+}
+.slide.dark { background: var(--ink); color: #fff; }
+.kicker { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 0 0 14px; }
+.dark .kicker { color: #8d9099; }
+h1, h2 { margin: 0; font-weight: 650; letter-spacing: -0.025em; line-height: 1.06; }
+h1 { font-size: 84px; }
+h2 { font-size: 44px; max-width: 1080px; }
+em, .serif { font-family: var(--display); font-style: italic; font-weight: 400; letter-spacing: -0.01em; }
+h2 em { color: var(--blue); }
+p { margin: 0; }
+.lede { font-size: 23px; line-height: 1.45; color: var(--ink-2); max-width: 900px; margin-top: 16px; }
+.dark .lede { color: #c9cbd1; }
+.src { position: absolute; left: 72px; right: 140px; bottom: 20px; font-size: 10.5px; line-height: 1.4; color: var(--faint); }
+.num { position: absolute; right: 72px; bottom: 20px; font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.brand { position: absolute; right: 72px; top: 30px; font-size: 13px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.logo { width: 18px; height: 18px; border-radius: 50%; background: var(--blue); position: relative; display: inline-block; }
+.logo::after { content: ""; position: absolute; left: 4px; right: 4px; top: 8px; height: 2.5px; border-radius: 2px; background: #fff; }
+.grid { display: grid; gap: 18px; }
+.g2 { grid-template-columns: 1fr 1fr; } .g3 { grid-template-columns: repeat(3, 1fr); } .g4 { grid-template-columns: repeat(4, 1fr); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 26px 28px; box-shadow: var(--shadow); }
+.card h3 { margin: 0 0 8px; font-size: 23px; letter-spacing: -0.01em; }
+.card p, .card li { font-size: 17.5px; line-height: 1.5; color: var(--ink-2); }
+.card ul { margin: 0; padding-left: 18px; }
+.big { font-size: 60px; font-weight: 650; letter-spacing: -0.03em; line-height: 1; }
+.big small { font-size: 18px; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.label { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.pill { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 9px; border-radius: 999px; font-size: 11px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; background: var(--paper-2); color: var(--ink-2); }
+.pill.live { background: var(--green-soft); color: #137a3f; } .pill.blue { background: var(--blue-soft); color: #0058c2; } .pill.warn { background: var(--amber-soft); color: #8a5800; }
+.shot { border-radius: 14px; border: 1px solid var(--line-2); box-shadow: var(--shadow-lg); overflow: hidden; background: #fff; }
+.shot img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+.cap { font-size: 16px; line-height: 1.4; color: var(--muted); margin-top: 8px; }
+.bubble { display: inline-block; padding: 9px 14px; border-radius: 20px; font-size: 16px; line-height: 1.3; max-width: 380px; }
+.bubble.me { background: var(--blue); color: #fff; border-bottom-right-radius: 6px; }
+.bubble.bot { background: var(--bubble-gray); color: var(--ink); border-bottom-left-radius: 6px; }
+.row { display: flex; gap: 18px; }
+.mt-auto { margin-top: auto; }
+.placeholder { background: #fff6d6; outline: 2px dashed var(--amber); border-radius: 6px; padding: 2px 6px; color: #7a4f00; font-style: normal; font-family: var(--sans); }
+table.t { border-collapse: collapse; width: 100%; font-size: 17px; }
+table.t td, table.t th { padding: 12px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+table.t th { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+table.t td.r, table.t th.r { text-align: right; font-variant-numeric: tabular-nums; }
+table.t tr.total td { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--ink); }
+.tag { font-size: 12px; font-weight: 650; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+.tag.m { background: var(--green-soft); color: #137a3f; } .tag.s { background: var(--blue-soft); color: #0058c2; } .tag.a { background: var(--amber-soft); color: #8a5800; }
+.pipeline { display: flex; align-items: stretch; gap: 10px; }
+.pipeline .step { flex: 1; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 22px 20px; box-shadow: var(--shadow); position: relative; }
+.pipeline .step h4 { margin: 6px 0 8px; font-size: 20px; }
+.pipeline .step p { font-size: 16px; line-height: 1.42; color: var(--ink-2); }
+.pipeline .arrow { align-self: center; color: var(--faint); font-size: 22px; }
+.who { font-size: 12.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--blue); }
+.funnel .stage { display: grid; grid-template-columns: 230px 1fr 170px; align-items: center; gap: 16px; padding: 15px 0; border-bottom: 1px solid var(--line); }
+.funnel .bar { min-width: 58px; height: 38px; border-radius: 8px; background: var(--blue); color: #fff; font-size: 14px; font-weight: 650; display: flex; align-items: center; padding: 0 12px; white-space: nowrap; }
+.funnel .k { font-size: 18px; font-weight: 600; }
+.funnel .k small { display: block; font-weight: 400; color: var(--muted); font-size: 14px; }
+.funnel .v { font-size: 15px; color: var(--ink-2); text-align: right; }
+.dense .card { padding: 18px 22px; } .dense .card p, .dense .card li { font-size: 15.5px; } .dense .big { font-size: 48px; }
+.dense table.t { font-size: 15.5px; } .dense table.t td, .dense table.t th { padding: 8px 12px; } .dense .label { margin-bottom: 6px; }
+.vc { margin-top: auto !important; margin-bottom: auto; }
+aside.notes { display: none; }
+
+/* screen viewer */
+@media screen {
+  body { overflow: hidden; height: 100vh; }
+  .deck { width: 100vw; height: 100vh; }
+  .slide { position: absolute; left: 50%; top: 50%; transform-origin: center center; display: none; box-shadow: 0 30px 80px rgba(0,0,0,.45); }
+  .slide.active { display: flex; }
+  body.notes-on .slide.active aside.notes { display: block; position: absolute; left: 0; right: 0; bottom: 0; max-height: 46%; overflow: auto; background: rgba(11,12,15,.94); color: #e8e9ec; font-size: 16px; line-height: 1.5; padding: 18px 72px; z-index: 5; }
+}
+@media print {
+  @page { size: 1280px 720px; margin: 0; }
+  body { background: none; }
+  .slide { page-break-after: always; break-after: page; display: flex !important; position: relative !important; left: auto !important; top: auto !important; transform: none !important; box-shadow: none !important; }
+  .ui { display: none !important; }
+}
+/* editing UI */
+.ui { font-family: var(--sans); }
+#hud { position: fixed; left: 16px; bottom: 14px; display: flex; gap: 8px; align-items: center; z-index: 20; }
+#hud button, #tb button, #tb input { font: 600 12px var(--sans); height: 30px; border-radius: 8px; border: 1px solid #3a3c42; background: #24262c; color: #fff; padding: 0 10px; cursor: pointer; }
+#hud span { color: #9a9ca3; font-size: 12px; }
+#tb { position: fixed; z-index: 30; display: none; gap: 4px; padding: 5px; border-radius: 10px; background: #0b0c0f; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+#tb input[type=color] { width: 34px; padding: 2px; }
+[contenteditable]:focus { outline: 2px solid rgba(10,124,255,.35); outline-offset: 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- 1 TITLE -->
+<section class="slide" data-title="Title">
+  <div style="margin-top: 70px">
+    <p class="kicker">Zero Human Startup Hackathon · #SFTechWeek</p>
+    <h1>Threadline</h1>
+    <h1 style="font-size:64px; margin-top:6px; font-weight:600">Your app, on <em style="color:var(--blue)">iMessage.</em></h1>
+    <p class="lede" style="margin-top:22px">Paste a store URL. Get an AI agent that knows the business, is tested on simulated customers, and answers your customers in blue bubbles.</p>
+  </div>
+  <div class="mt-auto" style="display:flex; gap:26px; align-items:flex-end; justify-content:space-between">
+    <div style="font-size:15px; color:var(--ink-2); line-height:1.7">
+      <b>Live:</b> threadline.akshitbansal1313.workers.dev<br>
+      <b>Code:</b> github.com/Reppin123/threadline<br>
+      <span class="placeholder">[AKI: your name + one line about you, in your own words]</span>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px; align-items:flex-end; margin-bottom:6px">
+      <span class="bubble me">do you have something for diwali gifting?</span>
+      <span class="bubble bot">The Kangra Trio Gift Box ₹999, or The Chai Ritual Set ₹549. Want me to place an order here?</span>
+    </div>
+  </div>
+  <div class="src">Chat bubbles are an abridged real reply from the Sanitea bot built by Threadline (AGENTS/core-e2e-transcript.md).</div>
+  <aside class="notes">Hi, I'm Aki. Threadline turns a business's website into an AI agent its customers can text on iMessage. Everything in this deck, the product and the company, was built by a team of AI agents, and every number you'll see is either measured from this build or sourced on the slide.</aside>
+</section>
+
+<!-- 2 PROBLEM -->
+<section class="slide" data-title="Problem">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Problem</p>
+  <h2>Customers answer texts. Brands talk to them through <em>widgets and email.</em></h2>
+  <div class="grid g2 vc" style="gap:22px">
+    <div class="card" style="padding:26px">
+      <div class="label">The channel gap</div>
+      <div class="row" style="gap:28px; align-items:flex-end; margin:6px 0 14px">
+        <div><div class="big">5.6%</div><p style="font-size:14px;color:var(--muted);margin-top:6px">SMS campaign click rate</p></div>
+        <div><div class="big" style="color:var(--faint)">1.69%</div><p style="font-size:14px;color:var(--muted);margin-top:6px">email campaign click rate</p></div>
+      </div>
+      <p style="font-size:16px; line-height:1.5; color:var(--ink-2)">Text gets about 3x the clicks of email. Yet support and sales still live in a chat bubble on a website the customer has already left.</p>
+    </div>
+    <div class="card" style="padding:26px">
+      <div class="label">Why brands don't fix it</div>
+      <p style="font-size:16px; line-height:1.5; color:var(--ink-2); margin-bottom:12px">A text agent that is safe to put in front of customers needs five hard parts:</p>
+      <ul style="font-size:16px; line-height:1.7; padding-left:20px; margin:0; color:var(--ink)">
+        <li>read the whole site and catalog, keep it fresh</li>
+        <li>take real actions (orders, bookings) through tools</li>
+        <li>remember each customer across conversations</li>
+        <li>test it before a customer sees a wrong price</li>
+        <li>iMessage plumbing, delivery, retries, routing</li>
+      </ul>
+    </div>
+  </div>
+  <div class="src">Click rates: Klaviyo 2026 SMS and email benchmarks, 183,000+ Klaviyo customers. klaviyo.com/products/sms-marketing/benchmarks · klaviyo.com/products/email-marketing/benchmarks</div>
+  <aside class="notes">Shoppers read and answer texts; Klaviyo's own benchmarks show SMS campaigns get about three times the clicks of email. But a brand that wants a real two-way agent in texts has to build five things: ingestion, tools, memory, testing and the iMessage plumbing. Small brands can't. That's the gap.</aside>
+</section>
+
+<!-- 3 WHY NOW -->
+<section class="slide" data-title="Why now">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Why now</p>
+  <h2>iMessage just became <em>programmable</em>, and the US is an iPhone market.</h2>
+  <div class="grid g3 vc">
+    <div class="card">
+      <div class="label">1 · The pipe opened</div>
+      <div class="big">$0<small> to start</small></div>
+      <p style="margin-top:10px">Photon Spectrum is open source (MIT) and its cloud gives managed iMessage lines: free up to 10 users, $25/mo up to 100, $250/line/mo for a dedicated number.</p>
+    </div>
+    <div class="card">
+      <div class="label">2 · The audience is there</div>
+      <div class="big">69%</div>
+      <p style="margin-top:10px">iPhone share of US smartphone sales in Q4 2025, a record high (65% a year earlier). Apple added RCS to Messages in iOS 18, so non-iPhone customers get rich fallback too.</p>
+    </div>
+    <div class="card">
+      <div class="label">3 · Agents can act</div>
+      <div class="big">3.8s<small> p50</small></div>
+      <p style="margin-top:10px">LLM tool use is now reliable enough to take an order in chat. Our Sanitea bot read 32 pages, saved an order to a table and answered at 3.8 s median on claude-sonnet-5-5.</p>
+    </div>
+  </div>
+  <div class="src">Photon pricing: photon.codes/pricing (captured Oct 2026, research/photon/pricing.txt). iPhone share: Counterpoint Research, Feb 2 2026, via TechSpot. RCS: Apple Newsroom, Jun 10 2024. Latency: AGENTS/STATUS-core.md, measured in this build.</div>
+  <aside class="notes">Three things changed. Photon made iMessage a programmable channel with an open-source SDK and cheap managed lines. In the US, iPhones are now 69 percent of smartphone sales per Counterpoint. And LLMs can now reliably call tools, so a text agent can actually place an order, not just answer FAQs. We measured that ourselves.</aside>
+</section>
+
+<!-- 4 PRODUCT -->
+<section class="slide" data-title="Product">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Product</p>
+  <h2>A URL in, a tested iMessage agent out. <em>About two minutes.</em></h2>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:22px; margin-top:28px">
+    <div style="display:flex; flex-direction:column; gap:12px">
+      <div><div class="shot" style="height:178px"><img src="assets/wizard-crop.png" style="object-position: 0 0"></div>
+      <p class="cap"><b style="color:var(--ink)">1 · Start.</b> A website, an OpenAPI or MCP server, or just an idea.</p></div>
+      <div><div class="shot" style="height:178px"><img src="assets/deploy-crop.png" style="object-position: 0 38%"></div>
+      <p class="cap"><b style="color:var(--ink)">3 · Go live.</b> Deploy a version to iMessage, Telegram next. Roll back any time.</p></div>
+    </div>
+    <div><div class="shot" style="height:400px"><img src="assets/builder-crop.png" style="object-position: 100% 0"></div>
+      <p class="cap"><b style="color:var(--ink)">2 · Shape it.</b> Chat with the builder; the iMessage preview answers with real prices from the site.</p></div>
+  </div>
+  <div class="src">Real screenshots of this build (Sanitea bot built from sanitea.vercel.app). Build time 99 to 133 s across runs (AGENTS/STATUS-platform.md, core-e2e-transcript.md).</div>
+  <aside class="notes">Here's the product. You tell the builder what you've got, in this case a tea shop's website. It crawls the site, extracts the catalog and policies, writes the bot's persona, guardrails and tables. You can change it by just chatting with the builder, and the phone preview is the exact same brain customers get. Then you deploy to iMessage.</aside>
+</section>
+
+<!-- 5 HOW IT WORKS -->
+<section class="slide" data-title="How it works">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">How it works</p>
+  <h2>Four agents behind every bot, so <em>the customer never meets a first draft.</em></h2>
+  <div class="vc">
+  <div class="pipeline">
+    <div class="step"><div class="who">Builder agent</div><h4>Reads the business</h4><p>Sitemap crawl, JSON-LD, Shopify JSON, headless fallback. Writes persona, FAQs, guardrails, data tables and test questions. OpenAPI and MCP become tools.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="who">Simulated customers</div><h4>Try to break it</h4><p>Typos, Hinglish, mind changes, prompt injection, plus the owner's test questions. Same runtime as production.</p></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="who">Judge agent</div><h4>Grades every reply</h4><p>Checks each claim against retrieved source pages. Wrong price or invented fact = fail, shown before deploy.</p></div>
+    <div class="arrow">→</div>
+    <div class="step" style="border-color:var(--blue)"><div class="who">Runtime agent</div><h4>Talks to customers</h4><p>Knowledge search, per-customer memory, tables it fills (Orders), scheduling, human handoff, "I don't know".</p></div>
+  </div>
+  <div class="card" style="margin-top:22px; display:flex; gap:28px; align-items:center; padding:16px 22px">
+    <div class="label" style="margin:0; white-space:nowrap">Gateway</div>
+    <p style="font-size:15px">Photon Spectrum (iMessage) → per-sender ordered queue, burst debounce, retries → one <b>core.chat()</b> shared by iMessage, playground and tests. Immutable versions, so what passed checks is exactly what ships.</p>
+  </div>
+  </div>
+  <div class="src">Source: packages/core (builder.ts, checks.ts, runtime.ts), apps/gateway. ARCHITECTURE.md in the repo.</div>
+  <aside class="notes">Under the hood every bot is four agents. The builder reads the business. Simulated customers attack it with typos, mixed languages and injection attempts. A judge grades every reply against the source pages. Only then does the runtime agent face customers, with memory, tables and handoff. One chat function serves the playground, the tests and iMessage, so what we test is what ships.</aside>
+</section>
+
+<!-- 6 PROOF -->
+<section class="slide dense" data-title="Proof">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Proof, measured in this build</p>
+  <h2>It works on a real store, <em>and we can show the receipts.</em></h2>
+  <div style="display:grid; grid-template-columns: 1.05fr 1fr; gap:22px; margin-top:36px; flex:1">
+    <div class="grid g2" style="gap:14px; align-content:start">
+      <div class="card"><div class="big">12/12</div><p style="margin-top:8px">end-to-end checks on sanitea.vercel.app: prices, gifting, brewing, shipping, order saved, memory across chats, Hinglish, "don't know"</p></div>
+      <div class="card"><div class="big">96%</div><p style="margin-top:8px">simulated-customer checks passing (25/26). The deployed bot shows 26/28.</p></div>
+      <div class="card"><div class="big">3.8s</div><p style="margin-top:8px">median reply (3.1 to 5.7 s across runs) on claude-sonnet-5-5</p></div>
+      <div class="card"><div class="big">19</div><p style="margin-top:8px">tools generated from the Petstore OpenAPI; a live getPetById call succeeded. An idea-only bakery bot passed 2/2 on mock data.</p></div>
+    </div>
+    <div>
+      <div class="shot" style="height:330px"><img src="assets/checks.png" style="object-position: 50% 78%"></div>
+      <p class="cap">Deploy page: checks run on every version before it goes live.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px; padding:12px 18px; display:flex; gap:12px; align-items:center">
+    <span class="pill warn">Honest status</span>
+    <p style="font-size:14px">0 paying customers yet. Gateway is connected to Photon Spectrum Cloud; the first real-phone send was blocked by the free plan's allowlist, fix is registering the handle in Photon.</p>
+  </div>
+  <div class="src">AGENTS/core-e2e-transcript.md, AGENTS/STATUS-core.md, AGENTS/STATUS-gateway.md, test_runs table in data/threadline.db (Oct 7 2026).</div>
+  <aside class="notes">Proof. On a real tea store the agent passed all 12 end-to-end checks, including saving an actual order to a table and remembering the customer in a new conversation seven hours later. Simulated-customer checks pass at 96 percent. Median reply is under four seconds. It also turns an OpenAPI spec into 19 callable tools. To be straight with you: no paying customers yet, and real-phone delivery is one Photon allowlist setting away.</aside>
+</section>
+
+<!-- 7 ZERO HUMAN COMPANY -->
+<section class="slide dense" data-title="The zero-human company">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">The zero-human company</p>
+  <h2>An orchestrator and seven specialist agents shipped it in <em>84 minutes.</em></h2>
+  <div style="display:grid; grid-template-columns: 1.35fr 1fr; gap:22px; margin-top:24px">
+    <table class="t card" style="padding:6px 10px">
+      <tr><th>Agent</th><th>Owns</th><th>Shipped</th><th class="r">Commits</th></tr>
+      <tr><td><b>orchestrator</b></td><td>spec, contract, schema</td><td>frozen contract.ts, job queue, priorities</td><td class="r">6</td></tr>
+      <tr><td><b>core</b></td><td>packages/core</td><td>ingest, runtime, memory, checks, judge</td><td class="r">16</td></tr>
+      <tr><td><b>gateway</b></td><td>apps/gateway</td><td>Photon iMessage, routing, outbound</td><td class="r">14</td></tr>
+      <tr><td><b>web</b></td><td>apps/web</td><td>site, wizard, builder, deploy, API</td><td class="r">11</td></tr>
+      <tr><td><b>platform</b></td><td>worker, deploy</td><td>job worker, supervisor, smoke test</td><td class="r">8</td></tr>
+      <tr><td><b>supabase</b></td><td>persistence</td><td>SQLite snapshots to Supabase Storage</td><td class="r">2</td></tr>
+      <tr><td><b>telegram</b></td><td>new channel</td><td>Bot API poller, 35/35 simulator tests</td><td class="r">1</td></tr>
+      <tr><td><b>pitch</b></td><td>pitch/</td><td>this deck, screenshots, PDF</td><td class="r">1</td></tr>
+    </table>
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div class="card"><div class="label">How they work together</div><p>One frozen interface (contract.ts), strict file ownership, and an append-only coordination log with 20 dated hand-offs. No human wrote code.</p></div>
+      <div class="card"><div class="label">A real hand-off, 16:25 to 16:30</div><p>Gateway found Photon's free plan has no shared inbound number. Orchestrator switched onboarding to "bot texts you first". Gateway shipped the outbound path 5 minutes later, with tests.</p></div>
+      <div class="card" style="padding:14px 22px"><p><b>First commit 15:43 → live on Cloudflare 17:07.</b> ~13,000 lines of TypeScript.</p></div>
+    </div>
+  </div>
+  <div class="src">git log of github.com/Reppin123/threadline (Oct 7 2026), COORDINATION.md, AGENTS/*.md briefs and status files. Line count: tracked .ts/.tsx/.mjs/.css/.sql/.sh files.</div>
+  <aside class="notes">This is the AI organization. One orchestrator wrote the spec and froze a contract, then specialist agents each owned a folder: core brain, iMessage gateway, web app, platform, persistence, Telegram and this pitch. They coordinate through an append-only log. My favorite moment: the gateway agent discovered Photon's free plan has no inbound number, the orchestrator switched onboarding to the bot texting first, and the gateway shipped the fix five minutes later. First commit to live on Cloudflare: 84 minutes.</aside>
+</section>
+
+<!-- 8 WEDGE + MARKET -->
+<section class="slide" data-title="Wedge and market">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Wedge and market, bottom-up</p>
+  <h2>Start with Shopify brands that <em>already pay</em> for support or SMS software.</h2>
+  <div style="display:grid; grid-template-columns: 1fr 1.25fr; gap:22px; margin-top:36px">
+    <div class="card">
+      <div class="label">Why this ICP first</div>
+      <ul style="line-height:1.6">
+        <li>A store URL is all we need: catalog, prices and policies are machine-readable (our Shopify JSON path).</li>
+        <li>They already have a budget line for answering customers: helpdesks and SMS tools.</li>
+        <li>Questions are repetitive and checkable: price, shipping, returns, order status.</li>
+        <li>We can show a working bot before the first call.</li>
+      </ul>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div class="card" style="border-color:var(--blue)">
+        <div class="label">Beachhead · Shopify stores on Gorgias or Postscript</div>
+        <div style="display:flex; align-items:baseline; gap:14px; font-size:22px; color:var(--ink-2)"><span class="big" style="font-size:44px">109,648</span>× $2,400/yr =<span class="big" style="font-size:44px; color:var(--blue)">$263M</span></div>
+        <p style="font-size:14.5px; margin-top:8px; color:var(--muted)">69,694 Gorgias + 39,954 Postscript installs. Global and may overlap, so an upper bound.</p>
+      </div>
+      <div class="card">
+        <div class="label">Expansion · every live US Shopify store</div>
+        <div style="display:flex; align-items:baseline; gap:14px; font-size:22px; color:var(--ink-2)"><span class="big" style="font-size:44px">1,186,833</span>× $1,188/yr =<span class="big" style="font-size:44px">$1.41B</span></div>
+        <p style="font-size:14.5px; margin-top:8px; color:var(--muted)">At the $99/mo minimum plan.</p>
+      </div>
+      <p style="font-size:14px; color:var(--muted)">$2,400/yr = 400 conversations a month × $0.50, our proposed price (next slide).</p>
+    </div>
+  </div>
+  <div class="src">US stores: StoreLeads Shopify report, updated Oct 2 2026 (storeleads.app/reports/shopify). Gorgias and Postscript installs: StoreCensus, Oct 2026 (storecensus.com/stats/app/gorgias, /postscript-sms-marketing).</div>
+  <aside class="notes">Our wedge is one customer: Shopify brands that already pay for a helpdesk or SMS tool. StoreCensus counts about 70 thousand Shopify stores on Gorgias and 40 thousand on Postscript. At 400 conversations a month at 50 cents, that's 2,400 dollars a year each, about 263 million dollars of beachhead. All 1.19 million US Shopify stores at our minimum plan is 1.4 billion. No top-down guesses.</aside>
+</section>
+
+<!-- 9 BUSINESS MODEL -->
+<section class="slide dense" data-title="Business model">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Business model</p>
+  <h2>Metered credits: <em>$0.50 a conversation</em>, half what helpdesk AI charges.</h2>
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:22px; margin-top:36px">
+    <table class="t card" style="padding:6px 12px">
+      <tr><th>Per conversation (5 replies)</th><th></th><th class="r">$</th></tr>
+      <tr><td>LLM cost per reply, claude-sonnet-5-5</td><td><span class="tag m">measured</span></td><td class="r">0.011</td></tr>
+      <tr><td>× 5 replies per conversation</td><td><span class="tag a">assumption</span></td><td class="r">0.055</td></tr>
+      <tr><td>iMessage line: $250/line/mo <span class="tag s">sourced</span>, shared by 20 brands × 1,000 conv.</td><td><span class="tag a">assumption</span></td><td class="r">0.013</td></tr>
+      <tr class="total"><td>COGS</td><td></td><td class="r">0.068</td></tr>
+      <tr><td>Price</td><td><span class="tag a">proposed</span></td><td class="r">0.50</td></tr>
+      <tr class="total"><td>Gross margin</td><td></td><td class="r" style="color:var(--green)">86%</td></tr>
+    </table>
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div class="card"><div class="label">Pricing</div><p>Free $1.50 credit to build and test (live today). Then $0.50 per customer conversation, $99/mo minimum. Own dedicated number: +$350/mo on Photon's $250 line.</p></div>
+      <div class="card"><div class="label">What it replaces</div><p>Gorgias AI Agent: $0.90 to $1.00 per automated interaction. Intercom Fin: $0.99 per outcome. Both answer in a widget or inbox, not in the customer's texts.</p></div>
+      <div class="card"><div class="label">One-time cost to onboard a store</div><p>Build ~$0.11 + full checks run ~$1.52 = <b>~$1.63</b> of LLM spend, measured.</p></div>
+    </div>
+  </div>
+  <div class="src">Measured: usage table in data/threadline.db (answering, build, tests categories, Oct 7 2026). Photon: photon.codes/pricing. Gorgias: gorgias.com/pricing. Intercom Fin: fin.ai/pricing (all checked Oct 2026).</div>
+  <aside class="notes">We sell metered credits. Measured LLM cost is about a cent per reply. With five replies a conversation and a Photon Business line shared across brands through our join-code routing, cost is about 7 cents a conversation. At 50 cents, that's 86 percent gross margin, and still half the price of Gorgias or Intercom's AI agents. Onboarding a store costs us about a dollar sixty of compute.</aside>
+</section>
+
+<!-- 10 GTM -->
+<section class="slide" data-title="Go to market">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Go to market: one funnel</p>
+  <h2>We build their bot <em>before</em> we ever email them.</h2>
+  <div style="display:grid; grid-template-columns: 1.55fr 1fr; gap:24px; margin-top:22px">
+    <div class="funnel card" style="padding:10px 20px">
+      <div class="stage"><div class="k">List<small>Gorgias / Postscript stores, StoreLeads</small></div><div><div class="bar" style="width:100%">1,000 stores / month</div></div><div class="v">~$300 data</div></div>
+      <div class="stage"><div class="k">Pre-build + test<small>bot from their URL, checks run</small></div><div><div class="bar" style="width:100%; background:#3b9bff">1,000 tested bots</div></div><div class="v">$1.63 each = $1,630</div></div>
+      <div class="stage"><div class="k">Founder email<small>"Your store's bot is live, text it"</small></div><div><div class="bar" style="width:15%">150</div></div><div class="v">15% try it</div></div>
+      <div class="stage"><div class="k">Trial<small>connect their number, real customers</small></div><div><div class="bar" style="width:6%; min-width:44px">30</div></div><div class="v">20% start trial</div></div>
+      <div class="stage" style="border-bottom:0"><div class="k">Paid<small>$200/mo average</small></div><div><div class="bar" style="width:3%; min-width:44px; background:var(--green)">12</div></div><div class="v">40% convert</div></div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:14px">
+      <div class="card"><div class="label">Unit economics</div><p style="font-size:15.5px">CAC ≈ ($300 + $1,630) / 12 ≈ <b>$160</b><br>Gross profit ≈ $200 × 86% = $172/mo<br>Payback ≈ <b>1 month</b></p></div>
+      <div class="card"><div class="label">Proof the motion works</div><p>Step 2 is already automated: the Sanitea bot in this deck was built from a URL with no human input, in 99 s.</p></div>
+      <div class="card"><div class="label">What we validate in Phase 2</div><p>The three conversion rates above are targets, not results. First 1,000-store batch tells us the real ones.</p></div>
+    </div>
+  </div>
+  <div class="src">Costs per bot measured in this build (usage table). List cost and conversion rates are planning assumptions <span class="placeholder">[AKI: confirm StoreLeads plan price]</span>. Store counts: StoreCensus Oct 2026.</div>
+  <aside class="notes">Go to market is one funnel. We pull a thousand Gorgias and Postscript stores a month, build and test a bot for each from its URL, which costs us about a dollar sixty, and the founder email says: your store's bot is live, text it. If 15 percent try, 20 percent of those trial and 40 percent pay, that's 12 customers a month at about 160 dollars CAC and a one-month payback. Those rates are targets; Phase 2 measures them.</aside>
+</section>
+
+<!-- 11 WHY WE WIN -->
+<section class="slide" data-title="Why we win">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Why we win</p>
+  <h2>Three things that are hard to copy <em>together.</em></h2>
+  <div class="vc">
+  <div class="grid g3">
+    <div class="card" style="padding:24px">
+      <span class="pill blue">iMessage first</span>
+      <h3 style="margin-top:14px; font-size:21px">Built for the blue bubble</h3>
+      <p>Shared-line routing by join code, "bot texts you first" for Photon's pooled numbers, ordered per-sender queues, burst debounce. Telegram on the same brain, 35/35 simulator tests.</p>
+    </div>
+    <div class="card" style="padding:24px">
+      <span class="pill live">Tested before live</span>
+      <h3 style="margin-top:14px; font-size:21px">No first drafts in front of customers</h3>
+      <p>Every version runs simulated customers and a judge against the source pages. Immutable versions mean what passed is what ships, with one-click rollback.</p>
+    </div>
+    <div class="card" style="padding:24px">
+      <span class="pill">Done for you</span>
+      <h3 style="margin-top:14px; font-size:21px">A URL, not a project</h3>
+      <p>No decision trees or intents to configure. The builder reads the store and writes the bot; changes are a chat message. That is also what makes our pre-built outbound funnel possible.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:20px; padding:16px 22px"><p style="font-size:16px"><b>And a cost edge:</b> the company itself is run by agents, so a new channel or vertical is a brief and an afternoon, not a hiring plan. Telegram went from brief to 35 passing tests the same day.</p></div>
+  </div>
+  <div class="src">Sources: apps/gateway (routing, outbound), packages/core/src/checks.ts and versions.ts, AGENTS/STATUS-telegram.md and git log (17:24 telegram commit).</div>
+  <aside class="notes">Why we win: we're iMessage first, with the routing and outbound work Photon's line model actually requires. Every version is tested by simulated customers before it ships. And it's done for you from a URL, which is exactly what lets us pre-build bots for prospects. Underneath, the company is run by agents, so adding a channel is a brief, not a hire.</aside>
+</section>
+
+<!-- 12 ASK -->
+<section class="slide dark" data-title="Ask and Phase 2">
+  <p class="kicker">Phase 2 plan, through Oct 11</p>
+  <h2 style="color:#fff">From a working product to <em style="color:#3b9bff">first paying brands.</em></h2>
+  <div class="grid g4" style="margin-top:32px">
+    <div class="card" style="background:#16171b; border-color:#2a2c33"><div class="label" style="color:#8d9099">Users</div><p style="color:#e8e9ec">Run the funnel on a first batch of Shopify stores; get real customers texting real brands.</p></div>
+    <div class="card" style="background:#16171b; border-color:#2a2c33"><div class="label" style="color:#8d9099">Channels</div><p style="color:#e8e9ec">Real-phone iMessage via Photon, Telegram live on Deploy, WhatsApp waitlist.</p></div>
+    <div class="card" style="background:#16171b; border-color:#2a2c33"><div class="label" style="color:#8d9099">Platform</div><p style="color:#e8e9ec">SQLite snapshots today, Postgres on Supabase next; credits billing.</p></div>
+    <div class="card" style="background:#16171b; border-color:#2a2c33"><div class="label" style="color:#8d9099">Lines</div><p style="color:#e8e9ec">A dedicated Photon Business line so customers can text a number first.</p></div>
+  </div>
+  <div style="display:flex; gap:12px; margin-top:28px; flex-wrap:wrap">
+    <span class="pill" style="background:#1f2a1f; color:#7ee2a5; height:30px; font-size:13px">Live today</span>
+    <span class="pill" style="background:#16171b; color:#e8e9ec; height:30px; font-size:13px">12/12 e2e on a real store</span>
+    <span class="pill" style="background:#16171b; color:#e8e9ec; height:30px; font-size:13px">96% simulated checks</span>
+    <span class="pill" style="background:#16171b; color:#e8e9ec; height:30px; font-size:13px">3.8 s median reply</span>
+    <span class="pill" style="background:#16171b; color:#e8e9ec; height:30px; font-size:13px">84 min, first commit to live</span>
+  </div>
+  <div style="margin-top:44px; font-size:30px; font-weight:600; letter-spacing:-0.02em">The ask: <span class="placeholder" style="font-size:24px">[AKI: amount and what it buys, in your own words]</span></div>
+  <div class="mt-auto" style="display:flex; justify-content:space-between; font-size:16px; color:#c9cbd1">
+    <span><b style="color:#fff">Try it:</b> threadline.akshitbansal1313.workers.dev</span>
+    <span><b style="color:#fff">Code:</b> github.com/Reppin123/threadline</span>
+  </div>
+  <div class="num" style="color:#6b6e76"></div>
+  <aside class="notes">Phase 2 runs through October 11. Get the first Shopify brands texting customers, turn on real-phone iMessage and Telegram, move to Postgres with credits billing, and get a dedicated line so customers can text first. [AKI: say the ask in your own words.] Try it live at the link, the code is public. Thank you.</aside>
+</section>
+
+<!-- APPENDIX -->
+<section class="slide" data-title="Appendix: architecture">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Appendix A · Architecture</p>
+  <h2>One container, three processes, <em>one brain.</em></h2>
+  <div class="grid g3" style="margin-top:28px">
+    <div class="card"><div class="label">apps/web · Next.js 15</div><p>Landing and SEO pages, auth (magic link, password, Google), wizard, builder, deploy, data, conversations, stats, public API with keys.</p></div>
+    <div class="card"><div class="label">apps/gateway · Photon Spectrum</div><p>iMessage cloud / local Mac / terminal modes, Telegram long polling, line_routes binding, per-sender queue, outbound scheduler, retries.</p></div>
+    <div class="card"><div class="label">apps/worker</div><p>Durable job queue: build_bot, run_checks, recrawl. Concurrency 2, stale-job requeue, heartbeat.</p></div>
+    <div class="card"><div class="label">packages/core</div><p>LLM provider abstraction, ingest (site, OpenAPI, MCP, idea), FTS5 retrieval, tools, memory, runtime loop, checks, judge, insights.</p></div>
+    <div class="card"><div class="label">packages/db</div><p>SQLite (node:sqlite, WAL), migrations, job queue, AES-256-GCM credential encryption, snapshots to Supabase Storage every 30 s.</p></div>
+    <div class="card"><div class="label">Hosting</div><p>Live on Cloudflare Containers. Same Docker image runs on Fly or Render. Scale path: Postgres + pgvector behind the same db helper.</p></div>
+  </div>
+  <div class="src">README.md, ARCHITECTURE.md, deploy/README.md.</div>
+  <aside class="notes">Appendix: architecture overview for questions.</aside>
+</section>
+
+<section class="slide" data-title="Appendix: data model">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Appendix B · Data model</p>
+  <h2>Everything a bot knows, does and says is <em>a row you can audit.</em></h2>
+  <table class="t card" style="margin-top:36px; padding:6px 14px">
+    <tr><th>Area</th><th>Tables</th><th>Why it matters</th></tr>
+    <tr><td><b>Accounts</b></td><td>users, sessions, api_keys (sha256), usage</td><td>Metered $ per category is the billing base</td></tr>
+    <tr><td><b>Bots</b></td><td>bots, versions (immutable snapshots), channels</td><td>What passed checks is exactly what ships; rollback</td></tr>
+    <tr><td><b>Knowledge</b></td><td>knowledge_docs, chunks + FTS5, tools</td><td>Grounded answers, cited by the judge</td></tr>
+    <tr><td><b>Customers</b></td><td>customers, memories, conversations, messages</td><td>Per-customer memory across channels and threads</td></tr>
+    <tr><td><b>Actions</b></td><td>bot_tables, rows (e.g. Orders), scheduled_messages</td><td>The bot does work, not just talk</td></tr>
+    <tr><td><b>Quality</b></td><td>test_runs, test_cases, events</td><td>Pass rate per version, insights</td></tr>
+    <tr><td><b>Routing + jobs</b></td><td>line_routes, jobs</td><td>Shared iMessage line, durable background work</td></tr>
+  </table>
+  <div class="src">packages/db/migrations/*.sql.</div>
+  <aside class="notes">Appendix: data model.</aside>
+</section>
+
+<section class="slide" data-title="Appendix: agent briefs">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Appendix C · How the agent org runs</p>
+  <h2>Briefs, ownership, a contract and a log.</h2>
+  <div class="grid g2" style="margin-top:36px">
+    <div class="card"><div class="label">Shared rules (AGENTS/COMMON.md)</div><ul>
+      <li>Hard folder ownership; contract edits additive only</li>
+      <li>Schema changes as new numbered migrations only</li>
+      <li>Cross-agent needs go in COORDINATION.md with a stopgap</li>
+      <li>Loop: build, typecheck, run for real, fix; status file after each milestone</li>
+      <li>Never print or commit secrets; keys loaded from Keychain</li>
+    </ul></div>
+    <div class="card"><div class="label">Each brief defines</div><ul>
+      <li>Scope and files owned</li>
+      <li>A Definition of Done, ticked only when proven by a run</li>
+      <li>Exact test commands (e2e, simulator, smoke)</li>
+      <li>"Needs Aki" list for things only a human can do (accounts, phone)</li>
+    </ul>
+    <p style="margin-top:10px">Verification is real: web e2e 16/16 in headless Chrome, gateway simulator 24/24, worker smoke PASS, core e2e 12/12.</p></div>
+  </div>
+  <div class="src">AGENTS/*.md in the repo; STATUS-web.md, STATUS-gateway.md, STATUS-platform.md, STATUS-core.md.</div>
+  <aside class="notes">Appendix: how the agent org is run.</aside>
+</section>
+
+<section class="slide" data-title="Appendix: sources">
+  <div class="brand"><span class="logo"></span>Threadline</div>
+  <p class="kicker">Appendix D · Sources</p>
+  <h2>Every number, and where it came from.</h2>
+  <table class="t card" style="margin-top:22px; padding:4px 14px; font-size:13px">
+    <tr><th>Figure</th><th>Source</th></tr>
+    <tr><td>1,186,833 live US Shopify stores (38.2% of 3,103,755)</td><td>StoreLeads, storeleads.app/reports/shopify, updated Oct 2 2026</td></tr>
+    <tr><td>69,694 Gorgias · 39,954 Postscript Shopify installs</td><td>StoreCensus, storecensus.com/stats/app/gorgias and /postscript-sms-marketing, Oct 2026</td></tr>
+    <tr><td>Gorgias AI Agent $0.90 (annual) / $1.00 (monthly) per automated interaction</td><td>gorgias.com/pricing, checked Oct 2026</td></tr>
+    <tr><td>Intercom Fin $0.99 per outcome</td><td>fin.ai/pricing, checked Oct 2026</td></tr>
+    <tr><td>Photon: free 10 users, Pro $25/mo 100 users, Business $250/line/mo</td><td>photon.codes/pricing (research/photon/pricing.txt)</td></tr>
+    <tr><td>iPhone 69% of US smartphone sales, Q4 2025</td><td>Counterpoint Research (Feb 2 2026), reported by TechSpot</td></tr>
+    <tr><td>RCS in Messages, iOS 18</td><td>Apple Newsroom, Jun 10 2024</td></tr>
+    <tr><td>SMS 5.6% vs email 1.69% campaign click rate</td><td>Klaviyo 2026 SMS and email benchmarks</td></tr>
+    <tr><td>12/12 e2e, 96% checks, 3.8 s p50, 19 OpenAPI tools, $/reply, $/build</td><td>This build: AGENTS/core-e2e-transcript.md, STATUS-core.md, usage + test_runs tables</td></tr>
+  </table>
+  <div class="src">Planning assumptions (labelled on slides): 5 replies per conversation, 20 brands per line, 400 conversations/mo per brand, funnel conversion rates, $0.50 price.</div>
+  <aside class="notes">Appendix: sources.</aside>
+</section>
+
+</div>
+
+<div class="ui" id="hud">
+  <button id="prev" title="Previous (←)">←</button><span id="pos"></span><button id="next" title="Next (→)">→</button>
+  <button id="edit">Edit text</button><button id="notesBtn" title="Speaker notes (N)">Notes</button><button id="copy">Copy HTML</button><span id="msg"></span>
+</div>
+<div class="ui" id="tb">
+  <button data-cmd="bold"><b>B</b></button><button data-cmd="italic"><i>I</i></button><button data-cmd="underline"><u>U</u></button>
+  <button data-size="-1">A−</button><button data-size="1">A+</button><input type="color" id="tbColor" value="#0a7cff" title="Text color">
+</div>
+
+<script>
+(() => {
+  const slides = [...document.querySelectorAll(".slide")];
+  slides.forEach((s, i) => { let n = s.querySelector(".num"); if (!n) { n = document.createElement("div"); n.className = "num"; s.appendChild(n); } n.textContent = (i + 1) + " / " + slides.length; });
+  let cur = Math.max(0, Math.min(slides.length - 1, (parseInt(location.hash.slice(1)) || 1) - 1));
+  const pos = document.getElementById("pos");
+  function fit() {
+    const s = Math.min(window.innerWidth / 1280, (window.innerHeight - 56) / 720) * 0.96;
+    slides.forEach((el) => { el.style.transform = `translate(-50%, calc(-50% - 18px)) scale(${s})`; });
+  }
+  function show(i) {
+    cur = Math.max(0, Math.min(slides.length - 1, i));
+    slides.forEach((el, j) => el.classList.toggle("active", j === cur));
+    pos.textContent = (cur + 1) + " / " + slides.length;
+    history.replaceState(null, "", "#" + (cur + 1));
+  }
+  window.addEventListener("resize", fit);
+  document.getElementById("prev").onclick = () => show(cur - 1);
+  document.getElementById("next").onclick = () => show(cur + 1);
+  document.addEventListener("keydown", (e) => {
+    if (document.activeElement && document.activeElement.isContentEditable) { if (e.key === "Escape") document.activeElement.blur(); return; }
+    if (["ArrowRight", "PageDown", " "].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (["ArrowLeft", "PageUp"].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === "Home") show(0); else if (e.key === "End") show(slides.length - 1);
+    else if (e.key.toLowerCase() === "n") document.body.classList.toggle("notes-on");
+  });
+  document.getElementById("notesBtn").onclick = () => document.body.classList.toggle("notes-on");
+
+  // editing
+  const editable = "h1,h2,h3,h4,p,li,td,th,.big,.label,.kicker,.cap,.bubble,.bar,.k,.v,.pill,.src,aside.notes";
+  let editing = false;
+  const editBtn = document.getElementById("edit");
+  editBtn.onclick = () => {
+    editing = !editing;
+    document.querySelectorAll(".slide " + editable.split(",").join(",.slide ")).forEach((el) => { if (editing) el.setAttribute("contenteditable", "true"); else el.removeAttribute("contenteditable"); });
+    editBtn.textContent = editing ? "Done editing" : "Edit text";
+    if (editing) document.body.classList.add("notes-on");
+  };
+  const tb = document.getElementById("tb");
+  document.addEventListener("selectionchange", () => {
+    const sel = window.getSelection();
+    if (!editing || !sel.rangeCount || sel.isCollapsed) { tb.style.display = "none"; return; }
+    const r = sel.getRangeAt(0).getBoundingClientRect();
+    tb.style.display = "flex";
+    tb.style.left = Math.max(8, r.left) + "px";
+    tb.style.top = Math.max(8, r.top - 46) + "px";
+  });
+  tb.addEventListener("mousedown", (e) => { if (e.target.tagName !== "INPUT") e.preventDefault(); });
+  let saved = null;
+  tb.querySelectorAll("button[data-cmd]").forEach((b) => b.onclick = () => document.execCommand(b.dataset.cmd));
+  tb.querySelectorAll("button[data-size]").forEach((b) => b.onclick = () => {
+    const sel = window.getSelection(); if (!sel.rangeCount) return;
+    const node = sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement;
+    const base = parseFloat(getComputedStyle(node).fontSize) || 16;
+    const span = document.createElement("span");
+    span.style.fontSize = Math.max(8, base + 2 * Number(b.dataset.size)) + "px";
+    try { sel.getRangeAt(0).surroundContents(span); } catch { document.execCommand("fontSize", false, Number(b.dataset.size) > 0 ? "5" : "2"); }
+  });
+  const color = document.getElementById("tbColor");
+  color.addEventListener("mousedown", () => { const s = window.getSelection(); saved = s.rangeCount ? s.getRangeAt(0).cloneRange() : null; });
+  color.addEventListener("input", () => { if (saved) { const s = window.getSelection(); s.removeAllRanges(); s.addRange(saved); } document.execCommand("foreColor", false, color.value); });
+
+  document.getElementById("copy").onclick = async () => {
+    const clone = document.documentElement.cloneNode(true);
+    clone.querySelectorAll("[contenteditable]").forEach((el) => el.removeAttribute("contenteditable"));
+    clone.querySelectorAll(".slide").forEach((el) => { el.classList.remove("active"); el.style.transform = ""; });
+    clone.querySelector("body").classList.remove("notes-on");
+    const html = "<!doctype html>\n" + clone.outerHTML;
+    const msg = document.getElementById("msg");
+    try { await navigator.clipboard.writeText(html); msg.textContent = "Copied. Paste over pitch/deck.html."; }
+    catch { const b = new Blob([html], { type: "text/html" }); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "deck.html"; a.click(); msg.textContent = "Downloaded deck.html"; }
+    setTimeout(() => msg.textContent = "", 4000);
+  };
+  fit(); show(cur);
+})();
+</script>
+</body>
+</html>

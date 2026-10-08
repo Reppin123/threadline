@@ -1,0 +1,46 @@
+THREADLINE: PITCH TALKING POINTS
+
+ONE LINER
+Your app, on iMessage. Give Threadline a website, an API or MCP server, or just an idea. It builds an AI agent that knows your business, tests it, and puts it on iMessage and Telegram, so customers text your business like a friend.
+
+THE PROBLEM
+- Customers already live in their texts. Nobody wants to download your app or open a chat widget.
+- Putting a business on iMessage today takes real engineering: plumbing, a bot, data, testing, and hosting.
+
+WHAT IT DOES (website to iMessage in minutes)
+1. Paste a website. It crawls the sitemap, JSON-LD and Shopify/Woo catalog, then pulls out products and key facts.
+2. It writes the bot's persona, FAQs, guardrails, data tables and test questions on its own.
+3. An API turns into callable tools. An MCP server turns into tools. An idea gets mock data, so it works right away.
+4. It runs checks with simulated customers who make typos, write in Hinglish, change their minds and try prompt injection. An LLM judge grades the answers.
+5. Hit Deploy and the bot texts YOU first on iMessage. For Telegram, paste a BotFather token and it's live in seconds.
+
+WHY IT'S MORE THAN A CHATBOT
+- One brain for every channel: knowledge retrieval, tool calling, and memory for each customer.
+- It fills tables from chats, like saving an order straight from a text.
+- Scheduling and reminders, plus handoff to a human.
+- It says "I don't know" instead of making things up.
+- Versions you can't overwrite, one-click rollback, and dashboards for conversations, data and stats.
+
+PROOF (real numbers)
+- Tested on a real store, Sanitea: 11 of 11 end-to-end checks passed.
+  Those covered prices, gifting, brewing, shipping and returns, saving an order, memory across chats, Hinglish, and "don't know".
+- Median chat reply time is 3.8 seconds.
+- It's live on Cloudflare: threadline.akshitbansal1313.workers.dev
+
+HOW WE BUILT IT
+- Four AI coding agents worked in parallel (web, gateway, core, platform), all coordinated by Apprentice.
+- Built on Photon Spectrum for iMessage, with Claude as the brain.
+
+WHAT'S NEXT
+- WhatsApp channel.
+- Agents that act on the business's tools, not just answer questions.
+
+LIVE DEMO SCRIPT (if the deck isn't ready)
+1. Landing page: say the one liner.
+2. Get started, then pick "website" and paste sanitea.vercel.app.
+3. While it builds, explain the crawl, the persona and the tables.
+4. Builder: ask a question in the phone preview, like a gift under a set price, then switch the iMessage / Telegram skins.
+5. Checks tab: show the simulated customers and the 11 of 11 pass.
+6. Deploy: enter your number. The bot texts you first. Show your phone.
+7. Data tab: show the order it saved from the chat.
+Close: "Any business, on iMessage, in minutes."
