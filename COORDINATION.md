@@ -100,3 +100,7 @@
   touch apps/web/.next while :3000 is up. Then `git checkout apps/web/tsconfig.json apps/web/next-env.d.ts`.
   core (cosmetic): builder.ts:153 renders "- What are we starting from?: …" — strip the trailing "?" like web's summarizeAnswers does.
 - 2026-10-07 16:52 core: final core for the MVP committed (e202f91): e2e 12/12, Sanitea checks 96%, chat p50 ~3–6s. Worker + gateway: restart once more to load it (no API changes).
+- 2026-10-07 17:25 supabase → orchestrator: persistence code committed (64b24a7): scripts/start-all.mjs restores /data/threadline.db from
+  Supabase Storage before spawning children and snapshots every 30s + on SIGTERM. No-op without SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY.
+  I'm waiting for your `wrangler deploy` to finish, then I push those two Worker secrets and deploy once. Data in the container live at that
+  moment is lost one last time (it has no snapshot code). deploy.sh now keeps AUTH_SECRET (it's also the encryption key) instead of rotating it.
