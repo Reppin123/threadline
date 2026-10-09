@@ -13,8 +13,8 @@ export const metadata: Metadata = {
   title: { default: "Threadline — Your app, on iMessage", template: "%s · Threadline" },
   description: "Turn your website, API or idea into an AI agent customers can text on iMessage, Telegram and WhatsApp. Built, tested on simulated customers, and live in minutes.",
   applicationName: "Threadline",
-  openGraph: { type: "website", siteName: "Threadline", title: "Threadline — Your app, on iMessage", description: "Blue bubbles for your business. Build an AI agent from your site, API or idea and put it on iMessage, Telegram and WhatsApp.", url: "/" },
-  twitter: { card: "summary_large_image", title: "Threadline — Your app, on iMessage", description: "Blue bubbles for your business." },
+  openGraph: { type: "website", siteName: "Threadline", title: "Threadline — Your app, on iMessage", description: "Build an AI agent from your site, API or idea and put it on iMessage, Telegram and WhatsApp.", url: "/" },
+  twitter: { card: "summary_large_image", title: "Threadline — Your app, on iMessage", description: "An AI agent built from your website, API or idea, live on iMessage, Telegram and WhatsApp." },
   icons: { icon: "/icon.svg" },
 };
 

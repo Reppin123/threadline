@@ -31,10 +31,24 @@ export function ScrollFx() {
     );
     els.forEach((el) => io.observe(el));
 
+    const scrubs = Array.from(document.querySelectorAll<HTMLElement>("[data-scrub]")).map((el) => ({
+      el,
+      words: Array.from(el.querySelectorAll<HTMLElement>(".sw")),
+    }));
+
     let raf = 0;
     const onScroll = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => root.style.setProperty("--sy", String(Math.min(window.scrollY, 900))));
+      raf = requestAnimationFrame(() => {
+        const vh = window.innerHeight;
+        root.style.setProperty("--hp", String(Math.min(window.scrollY / vh, 1).toFixed(4)));
+        for (const s of scrubs) {
+          const r = s.el.getBoundingClientRect();
+          const p = Math.max(0, Math.min(1, (vh * 0.82 - r.top) / (r.height + vh * 0.3)));
+          const lit = Math.round(p * s.words.length);
+          s.words.forEach((w, i) => w.classList.toggle("lit", i < lit));
+        }
+      });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });

@@ -17,9 +17,11 @@ export const metadata: Metadata = {
     type: "website",
     url: "/",
     title: "Threadline — Your app, on iMessage",
-    description: "Blue bubbles for your business. An AI agent built from your site, API or idea, live on iMessage, Telegram and WhatsApp.",
+    description: "An AI agent built from your website, API or idea, live on iMessage, Telegram and WhatsApp.",
   },
 };
+
+const STATEMENT = "Nobody wants another app to download. They already have Messages open all day. So put your business *there.".split(" ");
 
 const USE_CASES = [
   { label: "Restaurant pre-orders", idea: "Let regulars pre-order and pay for pickup by text" },
@@ -38,7 +40,7 @@ const USE_CASES = [
 const FAQS: Faq[] = [
   {
     q: "What is an iMessage AI agent?",
-    a: "It’s an assistant your customers text like a friend, in the Messages app they already use. Threadline connects it to your website, API or MCP server, so beyond answering questions it can check an order, book a slot or take a payment — in blue bubbles, with nothing to download.",
+    a: "It’s an assistant your customers text like a friend, in the Messages app they already use. Threadline connects it to your website, API or MCP server, so beyond answering questions it can check an order, book a slot or take a payment, with nothing to download.",
   },
   {
     q: "Do I need an app already?",
@@ -83,7 +85,7 @@ const PLANS = [
     name: "Pro",
     price: "$29",
     per: "/mo",
-    blurb: "For the apps your customers actually live in, with room to grow.",
+    blurb: "Every channel, including WhatsApp, with more usage included.",
     features: ["iMessage, Telegram and WhatsApp", "More usage included every month", "Usage-based overage, billed as you go", "Email support"],
     cta: { label: "Get started", href: "/signup" },
     featured: true,
@@ -145,20 +147,31 @@ export default function HomePage() {
           <span className="fb fb-4 bub them tail">Out for delivery, arriving 2:40</span>
         </div>
         <div className="wrap hero-inner">
-          <p className="hero-badge">
-            Blue bubbles for your business
-          </p>
+          <p className="hero-badge">AI agents for iMessage, Telegram and WhatsApp</p>
           <h1 id="hero-title" className="hero-title">
-            Your app, on <span className="serif hero-accent">iMessage</span>.
+            <span className="hw" style={{ "--i": 0 } as React.CSSProperties}>Your</span>{" "}
+            <span className="hw" style={{ "--i": 1 } as React.CSSProperties}>app,</span>{" "}
+            <span className="hw" style={{ "--i": 2 } as React.CSSProperties}>on</span>{" "}
+            <span className="hw" style={{ "--i": 3 } as React.CSSProperties}><span className="serif hero-accent">iMessage</span>.</span>
           </h1>
           <p className="hero-sub">
-            Hand us a website, an API or a half-formed idea. We build an AI agent that answers and actually does things,
-            test it on simulated customers, and put it where people already text — iMessage first, then Telegram and
-            WhatsApp.
+            Give us your website, your API or just an idea. We build an AI agent that answers questions and gets things
+            done, test it on simulated customers, then put it on iMessage. Telegram and WhatsApp come next.
           </p>
           <HeroComposer />
           <p className="hero-trust">
             <Check /> No card needed to build and test.
+          </p>
+        </div>
+      </section>
+
+      {/* 2. Statement */}
+      <section className="statement" aria-label="Why text">
+        <div className="wrap">
+          <p className="statement-text" data-scrub>
+            {STATEMENT.map((w, i) => (
+              <span key={i} className={`sw${w.startsWith("*") ? " sw-accent" : ""}`}>{w.replace("*", "")} </span>
+            ))}
           </p>
         </div>
       </section>
@@ -172,8 +185,8 @@ export default function HomePage() {
               Start from whatever you’ve <span className="serif">got</span>.
             </h2>
             <p className="sec-sub">
-              A live site, a folder of endpoints, or a sentence written on the back of a receipt. Pick one and the builder
-              picks it up from there.
+              A live site, a folder of endpoints, or a sentence written on the back of a receipt. Pick one and we build
+              from there.
             </p>
           </div>
           <div className="ways">
@@ -196,7 +209,7 @@ export default function HomePage() {
                   <span className="mb-scan" />
                 </div>
               </div>
-              <h3>I have an app</h3>
+              <h3>I have a website or app</h3>
               <p>
                 Web or mobile. Paste the URL and we read the public pages — menus, prices, policies, hours — so the agent
                 knows your business cold.
@@ -274,8 +287,8 @@ export default function HomePage() {
               One agent. Whichever app they <span className="serif">text</span> from.
             </h2>
             <p className="sec-sub">
-              iMessage first, because that’s where your customers’ friends already are. Telegram and WhatsApp run the same
-              brain, with each app’s own look and rules.
+              iMessage first, because that’s where your customers already text. Telegram and WhatsApp run the same agent,
+              each with its own look and rules.
             </p>
           </div>
           <Examples />
@@ -308,7 +321,7 @@ export default function HomePage() {
               </div>
               <div className="pillar-copy">
                 <span className="pillar-num mono">01</span>
-                <h3>An orchestrator that reads people</h3>
+                <h3>Understands how people actually text</h3>
                 <p>Shorthand, second thoughts and two languages in one message. It works out what they meant, checks your systems, then does it.</p>
               </div>
             </article>
@@ -540,7 +553,7 @@ export default function HomePage() {
               <span className="bub them tail">Hi! I’m Bean &amp; Barrel’s assistant. What can I get you?</span>
             </div>
             <h2 id="cta-title">
-              Put your business in the <span className="serif">blue bubbles</span>.
+              Let your customers <span className="serif">text</span> your business.
             </h2>
             <p>Describe it in a sentence. Text it in minutes. No card needed.</p>
             <div className="cta-actions">
