@@ -66,7 +66,7 @@ const FAQS: Faq[] = [
   },
   {
     q: "What does it cost?",
-    a: "Every account starts with $1.50 of free credit, no card required. After that you pay for what you use — replies, test runs and tool calls — or move to Pro at $29 a month for WhatsApp, more included usage and email support.",
+    a: "You can start free, no card required. After that you pay for what you use — replies, test runs and tool calls — or move to Pro at $29 a month for WhatsApp, more included usage and email support.",
   },
 ];
 
@@ -76,7 +76,7 @@ const PLANS = [
     price: "$0",
     per: "to start",
     blurb: "Get a working bot in front of real people and find out if they use it.",
-    features: ["$1.50 of trial credit", "Telegram + the shared iMessage line", "Mock-data prototype to start", "Community support"],
+    features: ["Telegram + the shared iMessage line", "Mock-data prototype to start", "Community support"],
     cta: { label: "Get started", href: "/signup" },
   },
   {
@@ -146,7 +146,6 @@ export default function HomePage() {
         </div>
         <div className="wrap hero-inner">
           <p className="hero-badge">
-            <span className="hero-badge-dot" aria-hidden="true" />
             Blue bubbles for your business
           </p>
           <h1 id="hero-title" className="hero-title">
@@ -159,7 +158,7 @@ export default function HomePage() {
           </p>
           <HeroComposer />
           <p className="hero-trust">
-            <Check /> No card. $1.50 of free credit to build and test.
+            <Check /> No card needed to build and test.
           </p>
         </div>
       </section>
@@ -406,7 +405,6 @@ export default function HomePage() {
             </h2>
             <p className="sec-sub">
               Threadline runs on metered credit: every reply, simulated test and tool call draws a little from your balance.
-              Everyone starts with $1.50 of free trial credit — enough to build, test and text your bot.
             </p>
           </div>
           <div className="plans">
@@ -544,7 +542,7 @@ export default function HomePage() {
             <h2 id="cta-title">
               Put your business in the <span className="serif">blue bubbles</span>.
             </h2>
-            <p>Describe it in a sentence. Text it in minutes. No card, and $1.50 of credit on us.</p>
+            <p>Describe it in a sentence. Text it in minutes. No card needed.</p>
             <div className="cta-actions">
               <Link href="/signup" className="btn btn-blue btn-lg">Get started</Link>
               <a href={CONTACT_HREF} className="btn btn-lg cta-ghost">Talk to us</a>
