@@ -16,21 +16,40 @@ export async function fetchText(url: string, timeoutMs = 10_000, accept = "text/
   return { status: r.status, text: await r.text(), type: r.headers.get("content-type") ?? "", url: r.url || url };
 }
 
-function parseRobots(txt: string) {
-  const disallow: string[] = [];
+export interface RobotsRule { allow: boolean; path: string; re: RegExp }
+/** robots.txt per RFC 9309: groups of consecutive user-agent lines, `*` wildcards, `$` anchors, longest match wins, Allow beats Disallow on ties. */
+export function parseRobots(txt: string, origin = "") {
   const sitemaps: string[] = [];
-  let applies = false;
+  const groups: { agents: string[]; rules: RobotsRule[] }[] = [];
+  let cur: { agents: string[]; rules: RobotsRule[] } | null = null;
+  let lastWasAgent = false;
   for (const raw of txt.split(/\r?\n/)) {
     const line = raw.replace(/#.*/, "").trim();
-    const [k, ...rest] = line.split(":");
-    const v = rest.join(":").trim();
-    if (!k) continue;
-    const key = k.toLowerCase();
-    if (key === "user-agent") applies = v === "*" || /threadline/i.test(v);
-    else if (key === "disallow" && applies && v) disallow.push(v);
-    else if (key === "sitemap" && v) sitemaps.push(v);
+    const i = line.indexOf(":");
+    if (i < 0) continue;
+    const key = line.slice(0, i).trim().toLowerCase();
+    const v = line.slice(i + 1).trim();
+    if (key === "user-agent") {
+      if (!lastWasAgent || !cur) { cur = { agents: [], rules: [] }; groups.push(cur); }
+      cur.agents.push(v.toLowerCase());
+      lastWasAgent = true;
+      continue;
+    }
+    lastWasAgent = false;
+    if (key === "sitemap" && v) { try { sitemaps.push(new URL(v, origin || undefined).toString()); } catch { /* bad */ } }
+    else if ((key === "disallow" || key === "allow") && cur && v) {
+      const re = new RegExp("^" + v.replace(/[.+?^{}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\\\$$/, "$"));
+      cur.rules.push({ allow: key === "allow", path: v, re });
+    }
   }
-  return { disallow, sitemaps };
+  const mine = groups.filter((g) => g.agents.some((a) => a.includes("threadline")));
+  const rules = (mine.length ? mine : groups.filter((g) => g.agents.includes("*"))).flatMap((g) => g.rules);
+  const allowed = (pathAndQuery: string) => {
+    let best: RobotsRule | null = null;
+    for (const r of rules) if (r.re.test(pathAndQuery) && (!best || r.path.length > best.path.length || (r.path.length === best.path.length && r.allow))) best = r;
+    return !best || best.allow;
+  };
+  return { allowed, sitemaps, rules };
 }
 
 async function sitemapUrls(url: string, origin: string, depth = 0): Promise<string[]> {
@@ -43,7 +62,9 @@ async function sitemapUrls(url: string, origin: string, depth = 0): Promise<stri
       const nested = await Promise.all(locs.slice(0, 8).map((l) => sitemapUrls(l, origin, depth + 1)));
       return nested.flat();
     }
-    return locs.filter((l) => l.startsWith(origin));
+    const bare = (h: string) => h.replace(/^www\./, "");
+    const host = bare(new URL(origin).hostname);
+    return locs.filter((l) => { try { return bare(new URL(l).hostname) === host; } catch { return false; } });
   } catch { return []; }
 }
 
@@ -61,23 +82,32 @@ const SKIP = /\.(png|jpe?g|gif|webp|svg|pdf|zip|mp4|mp3|css|js|ico|woff2?)(\?|$)
 export async function crawlWebsite(startUrl: string, opts: CrawlOpts = {}): Promise<CrawlResult> {
   const maxPages = opts.maxPages ?? Number(process.env.THREADLINE_CRAWL_MAX || 40);
   const conc = opts.concurrency ?? 4;
-  const start = new URL(startUrl);
-  const origin = start.origin;
+  let start = new URL(/^https?:\/\//i.test(startUrl) ? startUrl : `https://${startUrl}`);
   const errors: string[] = [];
+  // follow the start URL's redirects (www ↔ apex, http → https, /en-us …) so links on the real host count as same-site
+  const declaredOrigin = start.origin;
+  try { const r = await fetch(start, { method: "GET", headers: { "user-agent": UA }, redirect: "follow", signal: AbortSignal.timeout(15_000) }); if (r.url) start = new URL(r.url); r.body?.cancel().catch(() => {}); }
+  catch (e) { errors.push(`start: ${(e as Error).message}`); }
+  const origin = start.origin;
+  const bare = (h: string) => h.replace(/^www\./, "");
+  const sameSite = (u: string) => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) && bare(x.hostname) === bare(start.hostname); } catch { return false; } };
+  const toOrigin = (u: string) => { const x = new URL(u); x.protocol = start.protocol; x.host = start.host; return x.toString(); };
 
-  let disallow: string[] = [];
-  let sitemaps: string[] = [];
+  let robots = parseRobots("", origin);
   try {
     const r = await fetchText(origin + "/robots.txt", 8000, "text/plain");
-    if (r.status === 200) ({ disallow, sitemaps } = parseRobots(r.text));
+    if (r.status === 200 && !/html/i.test(r.type)) robots = parseRobots(r.text, origin);
   } catch (e) { errors.push("robots: " + (e as Error).message); }
-  const allowed = (u: string) => { const p = new URL(u).pathname; return !disallow.some((d) => p.startsWith(d.replace(/\*.*$/, ""))); };
+  let sitemaps = robots.sitemaps;
+  const allowed = (u: string) => { const x = new URL(u); return robots.allowed(x.pathname + x.search); };
+  let robotsBlocked = 0;
 
   if (!sitemaps.length) sitemaps = [origin + "/sitemap.xml"];
-  const fromSitemap = (await Promise.all(sitemaps.map((s) => sitemapUrls(s, origin)))).flat();
+  const fromSitemap = (await Promise.all(sitemaps.slice(0, 4).map((s) => sitemapUrls(s, origin)))).flat();
 
-  // Platform JSON (catalog truth for Shopify/Woo)
-  const platform = await detectPlatform(origin);
+  // Platform JSON (catalog truth for Shopify/Woo). Some headless storefronts keep the JSON on the declared host.
+  let platform = await detectPlatform(origin);
+  if (!platform.kind && declaredOrigin !== origin) platform = await detectPlatform(declaredOrigin);
   const products: Product[] = [...platform.products];
 
   const norm = (u: string) => { const x = new URL(u); x.hash = ""; x.search = ""; return x.toString().replace(/\/$/, "") || x.toString(); };
@@ -85,7 +115,9 @@ export async function crawlWebsite(startUrl: string, opts: CrawlOpts = {}): Prom
   const seen = new Set<string>();
   const push = (u: string) => {
     try {
-      if (SKIP.test(u) || !u.startsWith(origin) || !allowed(u)) return;
+      if (SKIP.test(u) || !sameSite(u)) return;
+      u = toOrigin(u);
+      if (!allowed(u)) { robotsBlocked++; return; }
       const n = norm(u);
       if (seen.has(n)) return;
       seen.add(n); queue.push(n);
@@ -97,7 +129,9 @@ export async function crawlWebsite(startUrl: string, opts: CrawlOpts = {}): Prom
   const pages: PageExtract[] = [];
   const t0 = Date.now();
   const useBfs = fromSitemap.length === 0;
-  let headlessBudget = 10;
+  let headlessBudget = Number(process.env.THREADLINE_HEADLESS_MAX || 25);
+  let emptyPages = 0;
+  holdHeadless();
   const retried = new Set<string>();
   async function worker() {
     while (queue.length && pages.length < maxPages) {
@@ -112,6 +146,7 @@ export async function crawlWebsite(startUrl: string, opts: CrawlOpts = {}): Prom
           if (html) ex = extractPage(html, u);
         }
         if (pages.length >= maxPages) break;
+        if (ex.text.length < 40 && !ex.products.length && !ex.faqs.length) { emptyPages++; continue; } // unrendered shell: nothing to learn
         pages.push(ex);
         opts.onPage?.(u, pages.length);
         if (process.env.THREADLINE_DEBUG) console.error(`[crawl] ${pages.length} ${u} ${Date.now() - t0}ms`);
@@ -123,8 +158,10 @@ export async function crawlWebsite(startUrl: string, opts: CrawlOpts = {}): Prom
       }
     }
   }
-  await Promise.all(Array.from({ length: conc }, worker));
-  await closeHeadless();
+  await Promise.all(Array.from({ length: conc }, worker)).finally(releaseHeadless);
+  if (!pages.length) errors.unshift(robotsBlocked && seen.size === 0
+    ? `${start.hostname}'s robots.txt blocks crawlers (only search engines are allowed) — paste the key pages as text, or describe the business as an idea`
+    : `no readable pages at ${origin} (${seen.size} URL${seen.size === 1 ? "" : "s"} tried${emptyPages ? `, ${emptyPages} rendered empty` : ""}${robotsBlocked ? `, ${robotsBlocked} blocked by robots.txt` : ""})`);
 
   for (const p of pages) products.push(...p.products);
   return { pages, products: dedupeProducts(products), platform: platform.kind, errors };
@@ -148,13 +185,28 @@ async function detectPlatform(origin: string): Promise<{ kind: "shopify" | "wooc
     if (r.status === 200 && r.type.includes("json")) {
       const j = JSON.parse(r.text);
       if (Array.isArray(j.products)) {
+        // Shopify Markets geo-converts prices to the visitor's currency; pin the shop's own currency so the bot quotes real prices.
+        let currency: string | undefined;
+        try { const m = await fetchText(origin + "/meta.json", 6000, "application/json"); if (m.status === 200) currency = JSON.parse(m.text).currency; } catch { /* optional */ }
+        let all: any[] = j.products;
+        if (currency) {
+          all = [];
+          for (let page = 1; page <= 4; page++) {
+            const pr = await fetchText(`${origin}/products.json?limit=250&page=${page}&currency=${currency}`, 10_000, "application/json").catch(() => null);
+            const pj = pr && pr.status === 200 ? (() => { try { return JSON.parse(pr.text); } catch { return null; } })() : null;
+            if (!pj?.products?.length) break;
+            all.push(...pj.products);
+            if (pj.products.length < 250) break;
+          }
+          if (!all.length) { all = j.products; currency = undefined; }
+        }
         return {
           kind: "shopify",
-          products: j.products.map((p: any) => ({
-            name: p.title, url: `${origin}/products/${p.handle}`,
+          products: all.map((p: any) => ({
+            name: p.title, url: `${origin}/products/${p.handle}`, currency,
             description: String(p.body_html ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400),
-            price: fmtPrice(p.variants?.[0]?.price), availability: p.variants?.some((v: any) => v.available) ? "InStock" : "OutOfStock",
-            variants: p.variants?.length > 1 ? p.variants.map((v: any) => `${v.title}: ${fmtPrice(v.price)}`) : undefined,
+            price: fmtPrice(p.variants?.[0]?.price, currency), availability: p.variants?.some((v: any) => v.available) ? "InStock" : "OutOfStock",
+            variants: p.variants?.length > 1 ? p.variants.slice(0, 12).map((v: any) => `${v.title}: ${fmtPrice(v.price, currency)}${v.available === false ? " (sold out)" : ""}`) : undefined,
           })),
         };
       }
@@ -192,17 +244,25 @@ const CHROME_PATHS = [
 ].filter(Boolean) as string[];
 
 let browserP: Promise<any> | null = null;
+// Several crawls (parallel builds) share one Chrome; only the last one out closes it.
+let headlessUsers = 0;
+function holdHeadless() { headlessUsers++; }
+async function releaseHeadless() { headlessUsers = Math.max(0, headlessUsers - 1); if (headlessUsers === 0) await closeHeadless(); }
 export async function renderHeadless(url: string): Promise<string> {
   const { existsSync } = await import("node:fs");
   const exe = CHROME_PATHS.find((p) => existsSync(p));
   if (!exe) throw new Error("no Chrome found (set CHROME_PATH)");
   const puppeteer: any = (await import("puppeteer-core")).default;
-  browserP ??= puppeteer.launch({ executablePath: exe, headless: true, args: ["--no-sandbox", "--disable-gpu"] });
-  const browser = await browserP;
+  browserP ??= puppeteer.launch({ executablePath: exe, headless: true, args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] });
+  let browser = await browserP;
+  if (!browser.connected) { browserP = puppeteer.launch({ executablePath: exe, headless: true, args: ["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage"] }); browser = await browserP; }
   const page = await browser.newPage();
   try {
     await page.setUserAgent(UA);
-    await page.goto(url, { waitUntil: "networkidle2", timeout: 20_000 });
+    // SPAs that poll forever never reach networkidle; wait for the DOM, then for real text to render.
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25_000 });
+    await page.waitForFunction(() => (document.body?.innerText ?? "").trim().length > 400, { timeout: 10_000, polling: 300 }).catch(() => {});
+    await new Promise((r) => setTimeout(r, 600));
     return await page.content();
   } finally {
     await page.close().catch(() => {});

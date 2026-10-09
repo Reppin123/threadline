@@ -15,7 +15,7 @@ export interface PageExtract {
   og: Record<string, string>;
 }
 
-const CURRENCY: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£" };
+const CURRENCY: Record<string, string> = { INR: "₹", USD: "$", EUR: "€", GBP: "£", JPY: "¥", AUD: "A$", CAD: "C$", SGD: "S$", AED: "AED ", NZD: "NZ$" };
 export function fmtPrice(price: string | number | undefined, currency?: string) {
   if (price === undefined || price === null || price === "") return undefined;
   const n = Number(price);
