@@ -5,7 +5,7 @@
 //   node --experimental-strip-types launch/billing/scripts/e2e-web.ts
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:http";
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 import { readFileSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import assert from "node:assert/strict";
@@ -35,7 +35,7 @@ const stripe = createServer((req, res) => {
   let body = ""; req.on("data", (c) => (body += c)); req.on("end", () => {
     const u = new URL(req.url!, "http://x"); seen.push({ path: u.pathname, body });
     const send = (j: unknown) => { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(j)); };
-    if (u.pathname === "/v1/prices") return send({ data: [{ id: "price_TLpro", lookup_key: "threadline_pro_monthly" }] });
+    if (u.pathname === "/v1/prices") { const key = u.searchParams.get("lookup_keys[0]")!; return send({ data: [{ id: key.endsWith("_overage") ? "price_TLstarter_overage" : "price_TLstarter", lookup_key: key }] }); }
     if (u.pathname === "/v1/customers") return send({ id: "cus_TLtest0001" });
     if (u.pathname === "/v1/checkout/sessions") return send({ id: "cs_test_1", url: "https://checkout.stripe.com/c/pay/cs_test_e2e" });
     if (u.pathname === "/v1/billing_portal/configurations") return send({ data: [{ id: "bpc_1", metadata: { threadline: "1" } }] });
@@ -76,32 +76,45 @@ try {
   await startWeb({});
   let html = await page("/billing");
   assert.match(html, /id="billing-not-configured"/); assert.match(html, /id="billing-plan">Free/);
-  assert.match(html, /0 of 100/);
-  step("/billing renders, says billing is not configured, Free plan, 0 of 100 messages");
-  let r = await post("/api/billing/checkout", { body: new URLSearchParams({ plan: "pro" }) });
+  assert.match(html, /0 of 50/);
+  step("/billing renders, says billing is not configured, Free plan, 0 of 50 conversations");
+  let r = await post("/api/billing/checkout", { body: new URLSearchParams({ plan: "starter", interval: "month" }) });
   assert.equal(r.status, 303); assert.match(r.headers.get("location")!, /\/billing\?error=Billing%20isn/);
   step("checkout without keys → 303 back to /billing with a friendly error");
   r = await post("/api/stripe/webhook", { body: "{}" });
   assert.equal(r.status, 503);
   step("webhook without STRIPE_WEBHOOK_SECRET → 503 billing_not_configured");
-  run("INSERT INTO message_counters(user_id,period,messages) VALUES (?,?,100)", [uid, new Date().toISOString().slice(0, 7)]);
+  run("INSERT INTO usage_counters(user_id,period,conversations) VALUES (?,?,50)", [uid, new Date().toISOString().slice(0, 7)]);
   html = await page("/dashboard");
-  assert.match(html, /id="billing-banner"/); assert.match(html, /have stopped replying/);
+  assert.match(html, /id="billing-banner"/); assert.match(html, /at capacity/);
   step("over the Free allowance → dashboard banner");
-  const api = await fetch(`${BASE}/billing`, { headers: { cookie } });
-  assert.equal(api.status, 200);
+  const key = "tl_e2e_" + id();
+  run("INSERT INTO api_keys(id,user_id,bot_id,key_hash,key_prefix) VALUES (?,?,?,?,?)", [id("ak_"), uid, bid, createHash("sha256").update(key).digest("hex"), key.slice(0, 8)]);
+  let api = await fetch(`${BASE}/api/v1/bots/${bid}/messages`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ to: "telegram:123", prompt: "hi" }) });
+  assert.equal(api.status, 402); assert.equal((await api.json()).error.code, "plan_required");
+  step("public API on Free → 402 plan_required");
+  run("UPDATE users SET plan='starter' WHERE id=?", [uid]);
+  api = await fetch(`${BASE}/api/v1/bots/${bid}/messages`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ to: "imessage:+15550001111", prompt: "hi" }) });
+  assert.equal(api.status, 202);
+  run("UPDATE usage_counters SET conversations=300 WHERE user_id=?", [uid]);
+  api = await fetch(`${BASE}/api/v1/bots/${bid}/messages`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ to: "imessage:+15550001111", prompt: "hi" }) });
+  assert.equal(api.status, 402); assert.equal((await api.json()).error.code, "quota_exceeded");
+  step("API on Starter: iMessage scheduling 202; out of conversations with no overage item → 402 quota_exceeded");
+  run("UPDATE users SET plan='free' WHERE id=?", [uid]);
+  run("UPDATE usage_counters SET conversations=50 WHERE user_id=?", [uid]);
   await stopWeb();
 
   console.log("billing e2e: Stripe test keys + fake Stripe API");
   await startWeb({ STRIPE_SECRET_KEY: "sk_test_e2e", STRIPE_WEBHOOK_SECRET: WHSEC, STRIPE_API_BASE: STRIPE_BASE });
   html = await page("/billing");
-  assert.doesNotMatch(html, /billing-not-configured/); assert.match(html, /Stripe test mode/); assert.match(html, /id="billing-upgrade"/);
-  step("/billing shows test-mode note and an Upgrade button");
-  r = await post("/api/billing/checkout", { body: new URLSearchParams({ plan: "pro" }) });
+  assert.doesNotMatch(html, /billing-not-configured/); assert.match(html, /Stripe test mode/); assert.match(html, /id="billing-upgrade-starter"/); assert.match(html, /id="billing-yearly-growth"/);
+  step("/billing shows test-mode note, monthly + yearly buttons for Starter and Growth");
+  r = await post("/api/billing/checkout", { body: new URLSearchParams({ plan: "starter", interval: "month" }) });
   assert.equal(r.status, 303); assert.equal(r.headers.get("location"), "https://checkout.stripe.com/c/pay/cs_test_e2e");
   const cs = new URLSearchParams(seen.find((s) => s.path === "/v1/checkout/sessions")!.body);
-  assert.equal(cs.get("client_reference_id"), uid); assert.equal(cs.get("line_items[0][price]"), "price_TLpro");
-  step("checkout → 303 to Stripe Checkout, session carries the user id and the Pro price");
+  assert.equal(cs.get("client_reference_id"), uid); assert.equal(cs.get("line_items[0][price]"), "price_TLstarter");
+  assert.equal(cs.get("line_items[1][price]"), "price_TLstarter_overage");
+  step("checkout → 303 to Stripe Checkout with the Starter price + metered overage item and the user id");
 
   const events = JSON.parse(readFileSync(resolve(ROOT, "packages/core/src/billing-fixtures/events.json"), "utf8").replaceAll("{{USER_ID}}", uid));
   const deliver = (ev: unknown, secret = WHSEC) => {
@@ -118,15 +131,18 @@ try {
   assert.deepEqual(await r.json(), { received: true, handled: false, result: "duplicate" });
   step("signed checkout.session.completed + subscription.created → 200; replay → duplicate");
   html = await page("/billing");
-  assert.match(html, /id="billing-plan">Pro/); assert.match(html, /of 2,000/); assert.match(html, /id="billing-manage"/);
-  assert.doesNotMatch(html, /id="billing-upgrade"/);
-  step("/billing now shows Pro, 2,000 allowance, Manage billing");
+  assert.match(html, /id="billing-plan">Starter/); assert.match(html, /50 of 300/); assert.match(html, /id="billing-manage"/);
+  assert.doesNotMatch(html, /id="billing-upgrade-/); assert.match(html, /id="billing-change-growth"/);
+  step("/billing now shows Starter, 50 of 300, Manage billing and Switch to Growth");
   html = await page("/dashboard");
   assert.doesNotMatch(html, /id="billing-banner"/);
-  step("banner gone once on Pro (100 of 2,000 used)");
+  step("banner gone once on Starter (50 of 300 used)");
   r = await post("/api/billing/portal");
   assert.equal(r.status, 303); assert.equal(r.headers.get("location"), "https://billing.stripe.com/p/session/test_e2e");
   step("Manage billing → 303 to the Stripe Customer Portal");
+  r = await post("/api/billing/checkout", { body: new URLSearchParams({ plan: "growth", interval: "month" }) });
+  assert.equal(r.status, 303); assert.match(decodeURIComponent(r.headers.get("location")!), /already have a subscription/);
+  step("a second checkout while subscribed → back to /billing with 'already have a subscription'");
   await deliver(events[2]);
   html = await page("/dashboard");
   assert.match(html, /payment didn&#x27;t go through|payment didn't go through/);

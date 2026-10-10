@@ -133,7 +133,7 @@ export function usageSummary(userId: string): UsageSummary {
   return {
     plan, period, resetsAt: periodResetsAt(), used, included, left: included === null ? null : Math.max(0, included - used), pct,
     overage, overageEnabled, overageCostUsd: Math.round(overage * (plan.overageUsd ?? 0) * 100) / 100,
-    over: atIncluded && !overageEnabled, nearLimit: included !== null && used >= included * 0.8 && !(atIncluded && !overageEnabled),
+    over: atIncluded && !overageEnabled, nearLimit: included !== null && used >= included * 0.8 && used < included,
     blocked: row?.blocked ?? 0, bots, botLimit, botsOffPlan: off,
   };
 }

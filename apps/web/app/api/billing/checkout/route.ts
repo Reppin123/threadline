@@ -1,4 +1,4 @@
-// POST /api/billing/checkout (form: plan=pro) → 303 to Stripe Checkout. Session cookie auth.
+// POST /api/billing/checkout (form: plan=starter|growth, interval=month|year) → 303 to Stripe Checkout. Session cookie auth.
 import { currentUser, appUrl } from "@/lib/auth";
 import { billing, stripeBilling } from "@/lib/billing";
 
@@ -10,10 +10,11 @@ export async function POST(req: Request) {
   const user = await currentUser();
   if (!user) return Response.redirect(`${appUrl()}/login?next=/billing`, 303);
   const form = await req.formData().catch(() => null);
-  const plan = billing.asPlanId(String(form?.get("plan") ?? "pro"));
+  const plan = billing.asPlanId(String(form?.get("plan") ?? "starter"));
+  const interval = form?.get("interval") === "year" ? "year" : "month";
   if (!stripeBilling.stripeConfigured()) return back("Billing isn't configured on this server yet.");
   try {
-    const url = await stripeBilling.createCheckoutSession({ id: user.id, email: user.email, name: user.name }, plan, appUrl());
+    const url = await stripeBilling.createCheckoutSession({ id: user.id, email: user.email, name: user.name }, plan, interval, appUrl());
     return Response.redirect(url, 303);
   } catch (e) {
     console.error("[billing] checkout", e);

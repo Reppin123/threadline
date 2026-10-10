@@ -26,7 +26,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (owner) {
     const ch = billing.canUseChannel(owner, channel);
     if (!ch.ok) return apiError(403, "plan_channel", ch.message);
-    const q = billing.canSendMessage(owner);
+    const q = billing.canStartConversation(owner);
     if (!q.ok) return apiError(402, "quota_exceeded", q.message);
   }
   let sendAt = new Date();

@@ -131,7 +131,7 @@ export async function connectChannel(botId: string, channel: "imessage" | "teleg
   const user = await requireUser();
   getBot(user.id, botId);
   const allowed = billing.canUseChannel(user.id, channel);
-  if (!allowed.ok) return { error: allowed.message };
+  if (!allowed.ok && !billing.canUseTestChannel(user.id, channel)) return { error: allowed.message };   // Free: iMessage for you + 5 test phones
   const handle = channel === "imessage" ? process.env.IMESSAGE_LINE_HANDLE || null : null;
   run(
     `INSERT INTO channels(bot_id,channel,status,line_handle,config_json,updated_at) VALUES (?,?,?,?,?,datetime('now'))

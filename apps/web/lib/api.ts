@@ -2,6 +2,7 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { get, run } from "@/lib/db";
+import { billing } from "@/lib/billing";
 
 export interface ApiAuth { keyId: string; userId: string; botId: string; canReadNotes: boolean }
 
@@ -20,6 +21,8 @@ export function authorize(req: Request, botId: string): ApiAuth | Response {
   if (k.bot_id && k.bot_id !== botId) return apiError(403, "forbidden", "This key only works for another bot.");
   const bot = get<{ id: string }>("SELECT id FROM bots WHERE id=? AND user_id=?", [botId, k.user_id]);
   if (!bot) return apiError(404, "not_found", "No bot with that id on this account.");
+  const plan = billing.canUseApi(k.user_id);   // billing: the API starts on Starter
+  if (!plan.ok) return apiError(402, "plan_required", plan.message);
   run("UPDATE api_keys SET last_used_at=datetime('now') WHERE id=?", [k.id]);
   return { keyId: k.id, userId: k.user_id, botId, canReadNotes: !!k.can_read_notes };
 }
