@@ -27,7 +27,7 @@ You must not:
 - upload, paste or type phone numbers or handles of people who have not opted in, including purchased, rented, scraped or shared lists;
 - use "text me" invites, scheduled messages or the API to send cold outreach, sales prospecting or bulk announcements;
 - send marketing messages (promotions, discounts, abandoned cart nudges) unless the person gave consent that covers marketing messages from you;
-- message anyone between 9pm and 8am in their local time, unless they messaged you within the last 24 hours. [R4]
+- message anyone first between 8pm and 9am in their local time (on Sundays, before noon), or more than 3 times in 24 hours, unless they messaged you within the last 24 hours. HeyBell holds such messages until the next allowed time. [R4]
 
 ## 2. Stopping and help
 
