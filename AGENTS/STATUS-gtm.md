@@ -11,7 +11,7 @@ Owns: launch/gtm/**
 - [x] launch/gtm/sample-leads.csv: 30 US Shopify brands, each verified by fetching (cdn.shopify.com + Gorgias/Postscript/Attentive script); I re-checked 13 of the final rows independently with curl
 
 ## Key decisions
-- Pricing replaces the deck's "$0.50/conv, $99 min": matches Flow at $29, sits far under helpdesk AI per conversation. Billing had already started a single $29 "Pro" plan; the full plan set is in COORDINATION.md.
+- Pricing replaces the deck's "$0.50/conv, $99 min": matches Flow at $29, sits far under helpdesk AI per conversation. Billing has adopted it (commit 92e0697: Free/Starter/Growth/Scale, 6h conversation meter, metered overage).
 - Wedge sizing corrected: live StoreLeads counts are much lower than the deck's StoreCensus install counts (note to pitch in COORDINATION.md).
 - Cold email pauses Nov 23 to Dec 1 (BFCM); Show HN moved off US election day (Nov 3).
 
