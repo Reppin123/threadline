@@ -10,6 +10,7 @@ const LINKS = [
   { href: "/#what", label: "What we do" },
   { href: "/#pricing", label: "Pricing" },
   { href: "/#guides", label: "Guides" },
+  { href: "/blog", label: "Blog" },
 ];
 
 export function SiteNav() {

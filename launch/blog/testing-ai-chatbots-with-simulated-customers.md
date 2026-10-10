@@ -6,6 +6,7 @@ date: 2026-10-10
 primary_keyword: "how to test an ai chatbot"
 secondary_keywords: ["chatbot testing", "llm as a judge", "simulated users for chatbot testing", "prompt injection testing", "ai agent evaluation"]
 author: Aki
+category: Engineering
 ---
 
 Every AI chatbot looks great in the demo. The founder types three polite, well-spelled questions, the bot answers them, everyone nods. Then the bot meets real customers, who type "hw much 4 the big 1 pls", switch languages mid-sentence, change their order twice and occasionally tell it to ignore its instructions and hand over a discount code.

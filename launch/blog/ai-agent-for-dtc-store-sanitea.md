@@ -6,6 +6,7 @@ date: 2026-10-10
 primary_keyword: "ai shopping assistant for dtc store"
 secondary_keywords: ["ai chatbot for shopify store", "ai sales agent for ecommerce", "conversational commerce", "text to order", "imessage shopping assistant"]
 author: Aki
+category: Case study
 ---
 
 Most "AI for e-commerce" demos are built on a store the vendor made up. We wanted to know what happens when you point an agent builder at a real direct-to-consumer store, with real prices, real shipping rules and real edge cases, and then let it talk to customers who type badly, switch languages and change their minds.

@@ -25,6 +25,7 @@ export function SiteFooter() {
                     <Link href={g.href}>{g.nav}</Link>
                   </li>
                 ))}
+                <li><Link href="/blog">Blog</Link></li>
               </ul>
             </div>
             <div>

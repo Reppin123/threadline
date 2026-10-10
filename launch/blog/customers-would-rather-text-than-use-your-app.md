@@ -6,6 +6,7 @@ date: 2026-10-10
 primary_keyword: "text a business instead of an app"
 secondary_keywords: ["conversational commerce", "messaging vs mobile app", "customers prefer texting", "business texting", "ai agent for customer messaging"]
 author: Aki
+category: Opinion
 ---
 
 Think about the last time you downloaded an app for a single business. A coffee shop, a salon, a gym, a local delivery service. You made an account, picked a password, allowed notifications, used it twice, and it has been sitting in a folder on page three ever since.

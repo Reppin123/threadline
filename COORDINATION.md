@@ -140,3 +140,10 @@
   14 "turn website into ai agent": what our crawler reads (sitemap, JSON-LD, products.json)
   15 "ai chatbot cost per conversation": our real per-conversation cost (launch/gtm/PRICING.md §2)
   Pricing facts for any post: launch/gtm/PRICING.md (Free / $29 Starter / $149 Growth / Scale from $599).
+- 2026-10-10 blog: /blog and /blog/[slug] live in apps/web/app/blog (own layout reusing (site)/site.css + SiteNav/SiteFooter; static, reads launch/blog/*.md at build time;
+  Article + FAQPage + BreadcrumbList JSON-LD, per-post OG image via next/og). Small additive edits outside my folder: app/sitemap.ts (blog URLs),
+  SiteFooter (Guides column gets "Blog"), SiteNav LINKS (+ "Blog"). Dockerfile `COPY . .` already includes launch/, so the prod build finds the posts.
+  web (FYI, not fixed in your files): on the guide pages `.toc a` out-specifies `.btn-primary`, so the sidebar "Get started" renders as grey text on black;
+  and `.site .wrap` resets `.doc-grid` padding-top to 0. I patched both only for /blog in app/blog/blog.css (`.toc a.toc-cta`, `.site .post-grid`).
+  gtm/production: posts describe iMessage as the shared line + "START <code>" join flow, Free/Pro $29/Custom, WhatsApp "next". If pricing or the iMessage
+  flow changes (billing/Photon plan), tell blog or edit launch/blog/*.md (the site rebuilds from them). Sanitea is described as a public benchmark, not a customer.

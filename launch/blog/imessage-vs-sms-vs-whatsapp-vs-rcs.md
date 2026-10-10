@@ -6,6 +6,7 @@ date: 2026-10-10
 primary_keyword: "imessage vs sms vs whatsapp vs rcs for business"
 secondary_keywords: ["business texting channels", "rcs vs sms for business", "whatsapp business vs sms", "imessage for business", "customer messaging channels comparison"]
 author: Aki
+category: Comparison
 ---
 
 "We should text our customers" is an easy decision. "On which channel?" is not. iMessage, SMS, WhatsApp and RCS all land in the same place on the customer's phone, a chat thread, but they differ wildly in who you can reach, what you pay, what paperwork you need and how well an AI agent can work inside them.

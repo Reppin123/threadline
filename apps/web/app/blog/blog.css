@@ -1,0 +1,30 @@
+/* Blog-only additions on top of (site)/site.css */
+.blog-hero .doc-title { max-width: 16ch; }
+.blog-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding-top: 48px; }
+.blog-card { min-height: 100%; }
+.blog-card h2, .blog-card h3 { font-size: 21px; margin: 14px 0 8px; line-height: 1.22; letter-spacing: -0.02em; }
+.blog-feature { grid-column: span 2; padding: 32px 30px 28px; background: linear-gradient(160deg, var(--blue-soft), var(--card) 60%); }
+.blog-feature h2 { font-size: clamp(26px, 3vw, 34px); max-width: 22ch; letter-spacing: -0.03em; }
+.blog-feature p { font-size: 16px; max-width: 56ch; }
+.blog-meta { margin-top: 16px; font-size: 13px; color: var(--muted); }
+.prose blockquote { margin: 0; padding: 4px 0 4px 18px; border-left: 3px solid var(--blue); color: var(--ink-2); }
+.prose .post-intro p:first-child { font-size: 1.08em; color: var(--ink); }
+.prose h3 { scroll-margin-top: 96px; }
+.prose h2 { scroll-margin-top: 96px; }
+.prose td:first-child { white-space: normal; min-width: 120px; }
+.doc-faq .faq details > div { padding: 0 52px 24px 4px; color: var(--ink-2); font-size: 16px; line-height: 1.65; }
+.doc-faq .faq details[open] > div { animation: s-fade .3s ease both; }
+@media (max-width: 1080px) {
+  .blog-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 600px) {
+  .blog-grid { grid-template-columns: 1fr; padding-top: 32px; }
+  .blog-feature { grid-column: auto; padding: 26px 22px 22px; }
+  .doc-faq .faq details > div { padding-right: 8px; }
+}
+.site .post-grid { padding-top: 48px; }
+.prose .md > * + * { margin-top: 1.1em; }
+.prose .md > h3 { margin-top: 1.8em; }
+/* .toc a (site.css) out-specifies .btn-primary; restore the button look for the sidebar CTA */
+.toc a.toc-cta { display: inline-flex; padding: 0 16px; margin-left: 0; border: 1px solid var(--ink); color: #fff; }
+.toc a.toc-cta:hover { color: #fff; }

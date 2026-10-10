@@ -6,6 +6,7 @@ date: 2026-10-10
 primary_keyword: "imessage ai agent for business"
 secondary_keywords: ["add ai to imessage", "imessage chatbot for business", "imessage business messaging", "ai text message assistant", "imessage api"]
 author: Aki
+category: Tutorial
 ---
 
 Your customers already have Messages open. It is the app they check between meetings, on the bus and before bed. If they could text your business there, the same way they text a friend, a lot of the friction in "download our app" or "call us between 9 and 5" disappears.

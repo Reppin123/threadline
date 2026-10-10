@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { GUIDES, PUBLISHED_ISO } from "@/components/site/data";
+import { getAllPosts } from "./blog/_lib/posts";
 
 const BASE = (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/$/, "");
 
@@ -8,6 +9,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: `${BASE}/`, lastModified, changeFrequency: "weekly", priority: 1 },
     ...GUIDES.map((g) => ({ url: `${BASE}${g.href}`, lastModified, changeFrequency: "monthly" as const, priority: 0.8 })),
+    { url: `${BASE}/blog`, lastModified, changeFrequency: "weekly", priority: 0.8 },
+    ...getAllPosts().map((p) => ({ url: `${BASE}/blog/${p.slug}`, lastModified: new Date(p.date), changeFrequency: "monthly" as const, priority: 0.7 })),
     { url: `${BASE}/privacy`, lastModified, changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE}/terms`, lastModified, changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE}/login`, lastModified, changeFrequency: "yearly", priority: 0.4 },

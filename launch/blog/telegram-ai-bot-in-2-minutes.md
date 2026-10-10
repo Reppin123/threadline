@@ -6,6 +6,7 @@ date: 2026-10-10
 primary_keyword: "how to make a telegram ai bot"
 secondary_keywords: ["telegram ai chatbot", "telegram bot no code", "botfather token", "telegram bot for business", "ai agent on telegram"]
 author: Aki
+category: Tutorial
 ---
 
 Telegram is the easiest messaging channel in the world to put an AI agent on. There is no business verification, no per-message fee and no approval queue. You talk to a bot called @BotFather, you get a token, and you are live.
