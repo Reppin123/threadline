@@ -1,1 +1,12 @@
 # Needs Aki (append-only)
+- [gtm] Upgrade Photon to Business (1 dedicated line) before any outbound or launch: Free only reaches 10 allowlisted handles, Pro 100. $250/line/mo. https://photon.codes/pricing (launch/gtm/PRICING.md)
+- [gtm] Buy 3 cold-email sending domains (lookalikes of the chosen domain, never the product domain) and set SPF/DKIM/DMARC. ~$12/yr each (estimate). (launch/gtm/OUTBOUND.md §7)
+- [gtm] Create 6 Google Workspace inboxes on those domains (2 per domain) for cold email. $7/user/mo = $42/mo. https://workspace.google.com/pricing
+- [gtm] Subscribe to Instantly Growth for sending + 21-day warmup; start warmup in week 1. $47/mo. https://instantly.ai/pricing
+- [gtm] Subscribe to StoreCensus Professional to pull US Shopify stores filtered by Gorgias/Postscript/Attentive (confirm app filter on that tier first). $99/mo. https://www.storecensus.com/pricing
+- [gtm] Provide a physical postal address for the CAN-SPAM footer of cold emails, and approve the first 20 emails by hand. $0. (launch/gtm/OUTBOUND.md §4)
+- [gtm] Personally send Sequence A to the 30 leads in launch/gtm/sample-leads.csv from your own inbox (max 10/day), after their prospect bots pass checks. $0.
+- [gtm] Start a 7-day Semrush or Ahrefs trial to replace estimated keyword volumes with real ones; cancel before billing. $0 if cancelled. https://www.semrush.com
+- [gtm] Post the launches yourself: Show HN Wed 2026-11-04, Indie Hackers wk 5, r/ShopifyApps wk 6 (check sidebar rules first), Product Hunt Sat 2026-12-05 12:01am PT. $0. (launch/gtm/INBOUND.md §4)
+- [gtm] Register as a Shopify Partner and pay the one-time App Store registration to list the app; submit by week 6 (reviews take 2-6+ weeks). $19 one-time. https://shopify.dev/docs/apps/launch/distribution/revenue-share
+- [gtm] Pay for directory listings (Uneed, TAAFT basic, Toolify if PH lands top 5). ~$80-230 total. (launch/gtm/INBOUND.md §5)
