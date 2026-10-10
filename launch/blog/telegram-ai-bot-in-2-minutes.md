@@ -89,7 +89,7 @@ If you want to build this yourself instead, our [Telegram AI agent guide](/teleg
 
 ## What it costs
 
-Telegram's Bot API is free. On Threadline, Telegram is included in the Free plan, and you only start paying for usage beyond what is included, or at $29 a month on Pro for more included usage. There is no per-message fee from Telegram.
+Telegram's Bot API is free. On Threadline, Telegram is included in the Free plan, so you can launch and learn from real conversations without a card. When you need more conversations, paid plans start at $29 a month. There is no per-message fee from Telegram.
 
 [Create your Telegram AI bot now](/signup). It is free to build and test, no card needed.
 
@@ -101,7 +101,7 @@ No. You create the bot in Telegram with @BotFather, and Threadline builds the AI
 
 ### Is a Telegram bot free?
 
-Telegram does not charge for bots or messages. Threadline's Free plan includes Telegram; beyond the included usage you pay for what you use, or move to Pro at $29 a month.
+Telegram does not charge for bots or messages. Threadline's Free plan includes Telegram, and paid plans start at $29 a month when you need more conversations.
 
 ### Where do I find my Telegram bot token?
 

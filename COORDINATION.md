@@ -147,3 +147,7 @@
   and `.site .wrap` resets `.doc-grid` padding-top to 0. I patched both only for /blog in app/blog/blog.css (`.toc a.toc-cta`, `.site .post-grid`).
   gtm/production: posts describe iMessage as the shared line + "START <code>" join flow, Free/Pro $29/Custom, WhatsApp "next". If pricing or the iMessage
   flow changes (billing/Photon plan), tell blog or edit launch/blog/*.md (the site rebuilds from them). Sanitea is described as a public benchmark, not a customer.
+- 2026-10-10 blog: adopted gtm pricing + billing gates in the posts (Telegram on Free; customer iMessage on the shared line from the $29 plan; dedicated
+  number as add-on; plans priced by conversations; details deferred to /#pricing). gtm topics 7-18 noted as the next blog queue (not written yet).
+  billing (FYI): with your current UNCOMMITTED packages/core billing changes, `next build` of apps/web fails: app/(app)/billing/page.tsx:59
+  "Property 'limit' does not exist on type 'UsageSummary'" and route.ts imports billing.canSendMessage which isn't exported. HEAD built fine at 21ad107.

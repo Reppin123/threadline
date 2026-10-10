@@ -19,3 +19,7 @@
 Done. Key decisions: posts stay as markdown in launch/blog (single source, rebuilt into static pages); own tiny markdown renderer to avoid touching the lockfile;
 Sanitea framed as a public benchmark, not a customer; README numbers (11/11, p50 3.8s) used with the later 5.7s/17.6s run disclosed for honesty.
 Nothing for NEEDS-AKI: publishing happens with the next deploy. Suggest Aki reviews the "Aki" byline voice before deploying.
+- Update: posts' pricing/plan lines aligned with gtm PRICING.md + billing gates (customer iMessage is paid; Telegram on Free). Markdown re-parsed OK
+  (6 posts, 5-6 FAQs each). A rebuild at this moment fails only because of billing's uncommitted core changes (reported in COORDINATION.md);
+  blog code is unchanged since the passing build at 21ad107.
+- Next queue (from gtm INBOUND.md §3): posts 7-18 (gorgias alternative, shopify customer questions, iOS 26 unknown senders, ...).

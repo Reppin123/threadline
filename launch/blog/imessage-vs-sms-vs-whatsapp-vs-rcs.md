@@ -65,10 +65,10 @@ Costs change often, so treat this as orientation and check the current rate card
 - **SMS (US):** You pay your provider per segment, plus carrier fees. Business texting from standard 10-digit numbers also requires 10DLC brand and campaign registration through The Campaign Registry, with one-time vetting fees and monthly campaign fees that vary by provider ([Plivo's 10DLC guide](https://plivo.com/blog/10dlc-registration)).
 - **WhatsApp:** Since July 1, 2025, Meta charges per template message, priced by category (marketing, utility, authentication) and the recipient's country. Replies inside the 24-hour customer service window are free, and utility templates sent inside that window are free too ([Meta pricing docs](https://developers.facebook.com/docs/whatsapp/pricing)). For a support or sales agent that mostly replies to customers, this is cheap.
 - **RCS:** Priced by providers and carriers per message or per session, and it varies a lot by market.
-- **iMessage:** Apple charges nothing per message. You pay whoever runs the line. On Threadline, the shared line is included on the Free plan; a dedicated line is on the Custom plan.
+- **iMessage:** Apple charges nothing per message. You pay whoever runs the line. On Threadline, the shared line is included from the $29 a month plan, and a dedicated number is available as an add-on.
 - **Telegram:** The Bot API is free.
 
-On every channel, if an AI agent is answering, the model calls cost more than the message itself. That is why Threadline bills by usage (replies, test runs, tool calls) instead of per message.
+On every channel, if an AI agent is answering, the model calls cost more than the message itself. That is why Threadline prices plans by conversations, not by individual messages.
 
 ## Rules and paperwork
 

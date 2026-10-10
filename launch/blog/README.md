@@ -16,6 +16,6 @@ H2/H3, links to /imessage-api /telegram-ai-agent /whatsapp-ai-agent and /signup,
 no invented customers or stats. Sanitea is described as a public benchmark site, not a customer.
 
 Facts sources: README.md, AGENTS/core-e2e-checks.md, packages/core/src/checks.ts, apps/gateway/src/telegram.ts, site pricing
-(Free / Pro $29 / Custom). External stats are cited inline with URLs and years.
+(updated 10-10 to gtm PRICING.md + billing gates: Telegram on Free, customer iMessage from $29, dedicated number add-on). External stats are cited inline with URLs and years.
 
 FAQ format (parsed by the site): `## Frequently asked questions` followed by `### Question` + one-paragraph answer.

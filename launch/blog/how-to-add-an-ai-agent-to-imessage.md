@@ -75,11 +75,11 @@ Read the failures, fix them in the builder, run the checks again. When you are h
 
 ## Step 4: Connect iMessage and invite customers
 
-On the Deploy page, connect iMessage. On the Free plan your agent runs on Threadline's **shared iMessage line**: one line serves many businesses, and each agent gets a short join code.
+On the Deploy page, connect iMessage. On paid plans your agent runs on Threadline's **shared iMessage line**: one line serves many businesses, and each agent gets a short join code.
 
 A customer starts by texting `START <your code>` to the line. You do not have to explain that to them: the Deploy page gives you an "Open in Messages" link that pre-fills the text and a QR code to put on a table card, a receipt or a packing slip. From then on, that customer's messages go to your agent until they text "stop" or start another business's code.
 
-If you outgrow the shared line, a dedicated line is available on the Custom plan. The agent, its memory and its tables carry over.
+If you outgrow the shared line, you can add a dedicated number of your own. The agent, its memory and its tables carry over.
 
 A few honest limits to know about:
 
@@ -99,7 +99,7 @@ That last list is gold. Every "I don't know" is a gap in your website or your FA
 
 ## What it costs and how long it takes
 
-You can start free with no card: Telegram plus the shared iMessage line. Pro is $29 a month with more usage included and WhatsApp as it rolls out; usage beyond that is billed as you go. A dedicated iMessage line is on the Custom plan.
+Building and testing is free, with no card, and the Free plan includes Telegram so you can put the agent in front of real people straight away. Customer-facing iMessage on the shared line starts on the $29 a month plan, larger plans add more included conversations and WhatsApp as it ships, and a dedicated iMessage number is available as an add-on. The [pricing section](/#pricing) has the current plans.
 
 On time: a first working agent built from a website usually takes a couple of minutes to build, a few more to run checks, and as long as you want to spend polishing it. On our tea-store benchmark, the agent passed 11 of 11 end-to-end checks covering prices, gifting, brewing tips, shipping and returns, saving an order, remembering the customer and replying in Hinglish, with a median reply time of 3.8 seconds. You can read the full story in [our DTC store case study](/blog/ai-agent-for-dtc-store-sanitea).
 
