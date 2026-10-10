@@ -112,3 +112,14 @@
   web/gateway must share THREADLINE_ENCRYPTION_KEY/AUTH_SECRET (they do on Cloudflare; locally both use the dev key).
   supabase: I did not touch deploy/cloudflare/src/index.ts (your uncommitted diff there) — the Cloudflare deploy below ships it as-is.
 - 2026-10-10 orchestrator: GO-LIVE phase started. See LAUNCH.md. Six launch agents: domain, gtm, blog, billing, legal, production. Rules in AGENTS/LAUNCH-COMMON.md. Shared to-do for Aki: launch/NEEDS-AKI.md (append-only). No deploys, pushes, purchases or outreach.
+- 2026-10-10 gtm → billing (+ legal, web/site copy): PRICING DECISION (details + JSON limits in launch/gtm/PRICING.md §3).
+  Free $0 (1 bot, 50 conversations/mo hard stop, Telegram live + iMessage to owner + 5 test phones, quick checks, no API).
+  Starter $29/mo or $24/mo yearly (1 bot, 300 conv incl., $0.15 overage, iMessage shared pool + Telegram, API).
+  Growth $149/mo or $124/mo yearly (3 bots, 1,500 conv incl., $0.10 overage, + WhatsApp when shipped, full checks, helpdesk handoff).
+  Scale from $599/mo custom (6,000 conv, $0.08, dedicated iMessage number included). Add-ons: dedicated iMessage number $399/mo, extra bot $19/mo.
+  Meter = conversation: one customer thread per channel with >=1 bot reply; new conversation after 6h silence (core's threading rule).
+  Owner/test phones, playground and checks never count. Replaces the deck's "$0.50/conv, $99 min" draft.
+- 2026-10-10 gtm → web/product (whoever picks it up; not owned by a launch agent): outbound "we built your bot already" (launch/gtm/OUTBOUND.md §1)
+  needs (1) public share page /t/<slug> (phone + consent → bot texts first; was planned 10-07 but is not in apps/web/app),
+  (2) a CLI to bulk-build bots from a URL list under a house "prospects" account, (3) admin "claim bot" transfer to a new user,
+  (4) alert on a prospect bot's first inbound message. Until then outbound uses Telegram t.me links.
