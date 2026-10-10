@@ -14,7 +14,7 @@ export default async function CheckPage({ searchParams }: { searchParams: Promis
       <p className="auth-sub">
         We sent a sign-in link to <b style={{ color: "var(--ink)" }}>{sp.email || "your email"}</b>. It works once and expires in 20 minutes.
       </p>
-      {sp.unsent && <div className="note-box">Email delivery isn&apos;t configured on this server, so the link was written to the server log.</div>}
+      {sp.unsent && <div className="note-box">We couldn&apos;t send the email just now. Try again in a few minutes, or <Link href="/login?method=password">sign in with a password</Link> instead.</div>}
       {sp.dev && (
         <div className="auth-dev">
           <p><b>Dev mode:</b> no email provider is configured, so here&apos;s the link (also printed in the server log).</p>

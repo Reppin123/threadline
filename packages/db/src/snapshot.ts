@@ -6,8 +6,10 @@
 //      and upserts it. flush() is also called on SIGTERM/SIGINT. Failures are logged and never block anything.
 // Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (both required, otherwise everything is a no-op),
 //      SUPABASE_SNAPSHOT_BUCKET (default threadline-db), SUPABASE_SNAPSHOT_OBJECT (default threadline.db),
-//      SNAPSHOT_INTERVAL_MS (default 30000).
+//      SNAPSHOT_INTERVAL_MS (default 30000), SNAPSHOT_HISTORY_HOURS (48), SNAPSHOT_HISTORY_DAYS (30).
 // Besides the latest object, one copy per hour is kept under history/<object>/ so a bad upload can be rolled back by hand.
+// Retention (pruneHistory, once an hour): every hourly copy for SNAPSHOT_HISTORY_HOURS, then the first copy of each day for
+// SNAPSHOT_HISTORY_DAYS, older ones deleted. Without it history grew ~40 MB/day and would fill Supabase Free's 1 GB in weeks.
 // Self-contained on purpose (no ./index.ts import): it must not open the DB or run migrations.
 import { DatabaseSync, backup } from "node:sqlite";
 import { existsSync, statSync, readFileSync, writeFileSync, renameSync, rmSync, mkdirSync } from "node:fs";
@@ -80,6 +82,42 @@ async function upload(c: NonNullable<ReturnType<typeof cfg>>, object: string, bo
   if (!r.ok) throw new Error(`upload ${object}: HTTP ${r.status} ${(await r.text()).slice(0, 200)}`);
 }
 
+/** Applies the retention rule to history/<object>/. Returns the deleted object names. Never throws. */
+export async function pruneHistory(log: Log = console.log, now = Date.now()): Promise<string[]> {
+  const c = cfg();
+  if (!c) return [];
+  const keepHours = Number(process.env.SNAPSHOT_HISTORY_HOURS || 48), keepDays = Number(process.env.SNAPSHOT_HISTORY_DAYS || 30);
+  const prefix = `history/${c.object}/`;
+  try {
+    const r = await fetch(`${c.url}/storage/v1/object/list/${c.bucket}`, {
+      method: "POST", headers: { ...headers(c.key), "Content-Type": "application/json" }, signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify({ prefix, limit: 10_000, offset: 0, sortBy: { column: "name", order: "asc" } }),
+    });
+    if (!r.ok) throw new Error(`list: HTTP ${r.status}`);
+    const names = ((await r.json()) as { name: string }[]).map((o) => o.name).filter((n) => /^\d{4}-\d{2}-\d{2}-\d{2}/.test(n)).sort();
+    const firstOfDay = new Set<string>();
+    const seenDay = new Set<string>();
+    for (const n of names) { const day = n.slice(0, 10); if (!seenDay.has(day)) { seenDay.add(day); firstOfDay.add(n); } }
+    const doomed = names.filter((n) => {
+      const at = Date.parse(`${n.slice(0, 10)}T${n.slice(11, 13)}:00:00Z`);
+      const ageH = (now - at) / 36e5;
+      if (!(ageH >= 0) || ageH < keepHours) return false;
+      return !(firstOfDay.has(n) && ageH < keepDays * 24);
+    });
+    if (!doomed.length) return [];
+    const d = await fetch(`${c.url}/storage/v1/object/${c.bucket}`, {
+      method: "DELETE", headers: { ...headers(c.key), "Content-Type": "application/json" }, signal: AbortSignal.timeout(30_000),
+      body: JSON.stringify({ prefixes: doomed.map((n) => prefix + n) }),
+    });
+    if (!d.ok) throw new Error(`delete: HTTP ${d.status}`);
+    log(`snapshot: pruned ${doomed.length} old history cop${doomed.length === 1 ? "y" : "ies"}`);
+    return doomed;
+  } catch (e) {
+    log(`snapshot: history prune failed: ${(e as Error).message}`);
+    return [];
+  }
+}
+
 export interface Snapshotter {
   flush(reason?: string): Promise<boolean>;
   stop(): void;
@@ -124,6 +162,7 @@ export function startSnapshotter(dbPath: string, opts: { restored?: RestoreResul
         // After a failed restore the local DB is probably a fresh one: keep it under its own name so it can never replace
         // the good hourly copy that a rollback would use (found by scripts/restore-drill.mjs B5).
         await upload(c!, `history/${c!.object}/${hour.replace("T", "-")}${protectLatest ? "-after-failed-restore" : ""}.db`, buf);
+        if (!protectLatest && lastHistoryHour !== hour) void pruneHistory(log);
         lastHistoryHour = hour;
       }
       lastVersion = v;

@@ -75,6 +75,16 @@ console.log(`source ${SRC}: ${(statSync(source).size / 1024).toFixed(0)} KB, ${O
     const chunks = []; for await (const c of req) chunks.push(c);
     const key = decodeURIComponent(new URL(req.url, "http://x").pathname.replace("/storage/v1/object/", ""));
     if (req.headers.authorization !== "Bearer drill-key") { res.writeHead(401); return res.end("{}"); }
+    if (req.method === "POST" && req.url.startsWith("/storage/v1/object/list/")) {
+      const { prefix } = JSON.parse(Buffer.concat(chunks).toString()); const bucket = req.url.split("/").pop();
+      const names = [...store.keys()].filter((k) => k.startsWith(`${bucket}/${prefix}`)).map((k) => ({ name: k.slice(bucket.length + 1 + prefix.length) }));
+      res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify(names));
+    }
+    if (req.method === "DELETE") {
+      const { prefixes } = JSON.parse(Buffer.concat(chunks).toString()); const bucket = key;
+      for (const p of prefixes) store.delete(`${bucket}/${p}`);
+      res.writeHead(200, { "content-type": "application/json" }); return res.end("[]");
+    }
     if (req.method === "POST") { store.set(key, Buffer.concat(chunks)); res.writeHead(200, { "content-type": "application/json" }); return res.end(`{"Key":"${key}"}`); }
     if (failGets) { res.writeHead(500); return res.end("storage down"); }
     if (!store.has(key)) { res.writeHead(400, { "content-type": "application/json" }); return res.end('{"statusCode":"404","error":"not_found","message":"Object not found"}'); }
@@ -82,7 +92,7 @@ console.log(`source ${SRC}: ${(statSync(source).size / 1024).toFixed(0)} KB, ${O
   });
   await new Promise((r) => srv.listen(0, "127.0.0.1", r));
   Object.assign(process.env, { SUPABASE_URL: `http://127.0.0.1:${srv.address().port}`, SUPABASE_SERVICE_ROLE_KEY: "drill-key", SUPABASE_SNAPSHOT_BUCKET: "threadline-db", SUPABASE_SNAPSHOT_OBJECT: "threadline.db" });
-  const { restoreSnapshot, startSnapshotter } = await import("../packages/db/src/snapshot.ts");
+  const { restoreSnapshot, startSnapshotter, pruneHistory } = await import("../packages/db/src/snapshot.ts");
   const quiet = () => {};
 
   const live = join(work, "live.db");
@@ -119,6 +129,22 @@ console.log(`source ${SRC}: ${(statSync(source).size / 1024).toFixed(0)} KB, ${O
   for (const ext of ["", "-wal", "-shm"]) rmSync(live + ext, { force: true });
   const rb = await restoreSnapshot(live, quiet);
   rec("B5 rollback to an hourly history copy", rb === "restored" && verify(live, expected).ok, rb);
+  // Retention: hourly copies for 48h, then first-of-day for 30 days.
+  const now = Date.UTC(2026, 9, 10, 12, 0, 0);
+  for (const k of [...store.keys()]) if (k.includes("history/")) store.delete(k);
+  for (let h = 0; h < 40 * 24; h += 3) {
+    const d = new Date(now - h * 36e5).toISOString();
+    store.set(`threadline-db/history/threadline.db/${d.slice(0, 10)}-${d.slice(11, 13)}.db`, Buffer.from("x"));
+  }
+  const histKeys = () => [...store.keys()].filter((k) => k.includes("history/"));
+  const n0 = histKeys().length;
+  const pruned = await pruneHistory(quiet, now);
+  const left = histKeys().map((k) => k.split("/").pop());
+  const old = left.filter((n) => now - Date.parse(`${n.slice(0, 10)}T${n.slice(11, 13)}:00:00Z`) >= 48 * 36e5);
+  const days = new Set(old.map((n) => n.slice(0, 10)));
+  const ok = pruned.length > 0 && old.length === days.size && !left.some((n) => now - Date.parse(`${n.slice(0, 10)}T00:00:00Z`) > 31 * 864e5)
+    && left.filter((n) => !old.includes(n)).length === 16;
+  rec("B6 history retention (48h hourly, 30d daily)", ok, `${n0} copies → ${left.length} (${pruned.length} deleted, ${old.length} daily kept)`);
   srv.close();
   for (const k of ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SNAPSHOT_BUCKET", "SUPABASE_SNAPSHOT_OBJECT"]) delete process.env[k];
 }

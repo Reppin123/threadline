@@ -34,6 +34,7 @@ interface Env {
   MAINTENANCE?: string;
   CF_BEACON_TOKEN?: string;
   CANONICAL_HOST?: string;
+  DEMO_DEV_LINKS?: string;
 }
 
 // Passed into the container only when set on the Worker.
@@ -56,9 +57,9 @@ export class App extends Container<Env> {
       THREADLINE_ENCRYPTION_KEY: env.AUTH_SECRET,
       APP_URL: env.APP_URL,
       GATEWAY_MODE: "cloud",
-      // On-screen sign-in links only while no email provider is configured (demo). With Resend set they are off, because
-      // showing the link to whoever typed the email would let anyone sign in as anyone.
-      THREADLINE_DEV_LINKS: env.RESEND_API_KEY ? "0" : "1",
+      // On-screen sign-in links let whoever types an email sign in as that account, so they are OFF in production.
+      // DEMO_DEV_LINKS=1 turns them back on for a throwaway demo deployment only (never with real users or Resend).
+      THREADLINE_DEV_LINKS: env.DEMO_DEV_LINKS === "1" && !env.RESEND_API_KEY ? "1" : "0",
       NEXT_PUBLIC_SITE_URL: env.APP_URL,
       THREADLINE_MODEL: "claude-sonnet-5-5",
       THREADLINE_FAST_MODEL: "claude-haiku-5-5",
