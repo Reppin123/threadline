@@ -9,7 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "node --experimental-strip-types src/selftest.ts"
+    "test": "node --experimental-strip-types src/selftest.ts",
+    "test:billing": "node --experimental-strip-types src/billing-test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

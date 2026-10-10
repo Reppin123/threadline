@@ -29,3 +29,6 @@ export { providerName } from "./llm.ts";
 export { refreshBuiltins } from "./builder.ts";
 
 export default core;
+// Billing (agent billing): plans + metering gates, and Stripe checkout/portal/webhooks.
+export * as billing from "./billing.ts";
+export * as stripeBilling from "./billing-stripe.ts";
