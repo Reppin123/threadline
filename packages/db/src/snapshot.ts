@@ -121,7 +121,9 @@ export function startSnapshotter(dbPath: string, opts: { restored?: RestoreResul
       const hour = new Date().toISOString().slice(0, 13);
       if (!protectLatest) await upload(c!, c!.object, buf);
       if (protectLatest || hour !== lastHistoryHour) {
-        await upload(c!, `history/${c!.object}/${hour.replace("T", "-")}.db`, buf);
+        // After a failed restore the local DB is probably a fresh one: keep it under its own name so it can never replace
+        // the good hourly copy that a rollback would use (found by scripts/restore-drill.mjs B5).
+        await upload(c!, `history/${c!.object}/${hour.replace("T", "-")}${protectLatest ? "-after-failed-restore" : ""}.db`, buf);
         lastHistoryHour = hour;
       }
       lastVersion = v;

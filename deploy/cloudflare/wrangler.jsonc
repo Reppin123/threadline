@@ -5,7 +5,11 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
+  // Domain cutover (launch/production/CUTOVER.md): APP_URL → "https://heybell.app", add the routes block, then CANONICAL_HOST.
   "vars": { "APP_URL": "https://threadline.akshitbansal1313.workers.dev" },
+  // "routes": [{ "pattern": "heybell.app", "custom_domain": true }],
+  // Keep-alive + edge health alert (src/index.ts scheduled()). Cron Triggers are included in Workers Free and Paid.
+  "triggers": { "crons": ["*/5 * * * *"] },
   "containers": [
     {
       "class_name": "App",

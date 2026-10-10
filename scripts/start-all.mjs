@@ -11,6 +11,7 @@ import { existsSync, readFileSync, mkdirSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { restoreSnapshot, startSnapshotter, snapshotEnabled } from "../packages/db/src/snapshot.ts";
+import { alert, reportError } from "../packages/core/src/ops.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -174,14 +175,59 @@ async function start(name) {
   const child = spawnLogged(name, c.cmd, c.argv, c.cwd);
   st.child = child;
   child.on("error", (e) => say(name, `spawn error: ${e.message}`));
+  const tail = [];
+  child.stderr.on("data", (d) => { tail.push(...String(d).split("\n").filter(Boolean)); tail.splice(0, Math.max(0, tail.length - 30)); });
   child.on("exit", (code, sig) => {
     st.child = null;
     if (shuttingDown) return say(name, `stopped (${sig || code})`);
+    noteCrash(name, code, sig, tail);
     if (Date.now() - st.startedAt > 60_000) st.backoff = 1000; // it was healthy for a while → reset backoff
     say(name, `exited (${sig || "code " + code}) — restarting in ${Math.round(st.backoff / 1000)}s`);
     scheduleRestart(name);
   });
 }
+// ---------- watchdog: crash loops, gateway disconnect, queue backlog, snapshot failures → ops.alert (ALERT_WEBHOOK_URL) ----------
+const crashes = Object.fromEntries(services.map((s) => [s, []]));
+function noteCrash(name, code, sig, tail) {
+  const now = Date.now();
+  crashes[name] = crashes[name].filter((t) => now - t < 600_000).concat(now);
+  reportError(new Error(`${name} exited (${sig || "code " + code})`), { service: "supervisor", where: `child:${name}`, stderrTail: tail.slice(-15).join("\n") });
+  if (crashes[name].length >= 3) alert(`crash-loop:${name}`, `${name} exited ${crashes[name].length} times in 10 min; last: ${tail.slice(-1)[0] ?? sig ?? code}`);
+}
+const WATCH_MS = Number(process.env.WATCHDOG_INTERVAL_MS || 60_000);
+const down = {}; // key → first time seen failing
+function watchState(key, failing, minSec, text) {
+  if (failing) {
+    down[key] ??= Date.now();
+    if (Date.now() - down[key] >= minSec * 1000) alert(key, text);
+  } else if (down[key]) {
+    if (Date.now() - down[key] >= minSec * 1000) alert(key, "recovered", { resolved: true });
+    delete down[key];
+  }
+}
+async function watchdog() {
+  if (shuttingDown) return;
+  let h = null;
+  try { const r = await fetch(`http://127.0.0.1:${PORTS.web}/healthz`, { signal: AbortSignal.timeout(8000) }); h = await r.json(); } catch {}
+  const gwDownSec = Number(process.env.ALERT_GATEWAY_DOWN_SEC || 180);
+  if (services.includes("web")) watchState("web-down", !h, gwDownSec, `web /healthz not answering on :${PORTS.web}`);
+  if (!h) return;
+  if (services.includes("gateway")) watchState("gateway-disconnected", !h.gateway?.ok, gwDownSec,
+    `gateway has no connected provider (mode=${h.gateway?.mode ?? "?"}); inbound iMessage/Telegram is not being answered`);
+  if (services.includes("worker")) {
+    watchState("worker-down", !h.worker?.ok, gwDownSec, "worker /health failing; builds and checks are not running");
+    const q = h.queue || {};
+    const tooMany = (q.readyNow ?? 0) > Number(process.env.ALERT_QUEUE_READY || 20);
+    watchState("build-queue-backlog", !!q.backlog || tooMany, 0, `${q.readyNow} job(s) waiting, oldest ${q.oldestReadySec}s; ${q.running} running`);
+  }
+}
+let snapFails = 0;
+function snapWatch(m) {
+  if (m.includes("upload failed")) { if (++snapFails >= Number(process.env.ALERT_SNAPSHOT_FAILS || 5)) alert("snapshot-failing", `${snapFails} snapshot uploads in a row failed: ${m}`); }
+  else if (m.includes("snapshot: uploaded")) { if (snapFails >= Number(process.env.ALERT_SNAPSHOT_FAILS || 5)) alert("snapshot-failing", "uploads work again", { resolved: true }); snapFails = 0; }
+  else if (m.includes("restore failed") || /restore attempt 5\/5/.test(m)) alert("snapshot-restore-failed", m);
+}
+
 function scheduleRestart(name) {
   const st = state[name];
   st.restarts++;
@@ -240,9 +286,9 @@ async function reportHealth() {
 say("start", `mode=${DEV ? "dev" : "start"} gateway=${process.env.GATEWAY_MODE || "terminal"} db=${process.env.THREADLINE_DB} env=${envFiles.map((f) => f.replace(ROOT + "/", "")).join(",") || "(none)"}${keychainLoaded.length ? " keychain=" + keychainLoaded.join(",") : ""} services=${services.join(",")}`);
 // Persistence for disk-less containers (packages/db/src/snapshot.ts): restore BEFORE any child opens the DB; this supervisor is
 // the single uploader (periodic + on shutdown). No-op unless SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set.
-const snapLog = (m) => say("start", m);
+const snapLog = (m) => { say("start", m); snapWatch(m); };
 const restored = await restoreSnapshot(process.env.THREADLINE_DB, snapLog);
 snapshotter = startSnapshotter(process.env.THREADLINE_DB, { restored, log: snapLog });
 if (snapshotEnabled()) say("start", `snapshot: ${restored}; uploading changes every ${Math.round(Number(process.env.SNAPSHOT_INTERVAL_MS || 30000) / 1000)}s`);
 for (const s of services) start(s);
-reportHealth();
+reportHealth().then(() => { if (!shuttingDown && process.env.WATCHDOG !== "0") setInterval(watchdog, WATCH_MS).unref?.(); });
