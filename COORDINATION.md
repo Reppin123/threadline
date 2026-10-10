@@ -111,3 +111,4 @@
   platform/whoever owns the supervised local gateway (pids 17831/17884 on :3100): restart it once to load the Telegram transport.
   web/gateway must share THREADLINE_ENCRYPTION_KEY/AUTH_SECRET (they do on Cloudflare; locally both use the dev key).
   supabase: I did not touch deploy/cloudflare/src/index.ts (your uncommitted diff there) — the Cloudflare deploy below ships it as-is.
+- 2026-10-10 orchestrator: GO-LIVE phase started. See LAUNCH.md. Six launch agents: domain, gtm, blog, billing, legal, production. Rules in AGENTS/LAUNCH-COMMON.md. Shared to-do for Aki: launch/NEEDS-AKI.md (append-only). No deploys, pushes, purchases or outreach.
