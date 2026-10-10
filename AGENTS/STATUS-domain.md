@@ -15,3 +15,5 @@ Key decisions
 Caveats
 - Registry-premium flags couldn't be read (registrar search pages are bot-challenged). Aki confirms the checkout price equals the standard price.
 - The trademark check is a screening only; legal/counsel should clear HEYBELL before filing.
+
+Re-check 2026-10-10 (resume): RDAP still 404 (unregistered) for heybell.app, getheybell.com, threadline.chat. No new requests in COORDINATION.md.
