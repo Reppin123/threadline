@@ -89,7 +89,7 @@ const PAID_STATUSES = new Set(["active", "trialing", "past_due"]);
  *  (docs.stripe.com/billing/subscriptions/mixed-interval, "Limitations"), so yearly plans stop at the included conversations. */
 export async function createCheckoutSession(user: { id: string; email: string; name?: string | null }, planId: PlanId, interval: Interval, appUrl: string): Promise<string> {
   const plan = PLANS[planId];
-  if (!plan.selfServe || !plan.lookupKeys) throw new BillingError(`The ${plan.name} plan is set up with our team. Email hello@threadline.app.`);
+  if (!plan.selfServe || !plan.lookupKeys) throw new BillingError(`The ${plan.name} plan is set up with our team: use "Talk to us" on the Billing page.`);
   const sub = subscriptionRow(user.id);
   if (sub && PAID_STATUSES.has(sub.status) && sub.stripe_subscription_id) throw new BillingError("You already have a subscription. Use Manage billing to change it.");
   const base = await priceByLookupKey(plan.lookupKeys[interval]);
@@ -133,7 +133,7 @@ export async function createPortalSession(userId: string, appUrl: string): Promi
  *  (customer.subscription.updated) moves users.plan. */
 export async function changePlan(userId: string, planId: PlanId): Promise<void> {
   const plan = PLANS[planId];
-  if (!plan.selfServe || !plan.lookupKeys) throw new BillingError(`The ${plan.name} plan is set up with our team. Email hello@threadline.app.`);
+  if (!plan.selfServe || !plan.lookupKeys) throw new BillingError(`The ${plan.name} plan is set up with our team: use "Talk to us" on the Billing page.`);
   const row = subscriptionRow(userId);
   if (!row?.stripe_subscription_id || !PAID_STATUSES.has(row.status)) throw new BillingError("No active subscription to change. Upgrade first.");
   const sub = await stripe<any>("GET", `/v1/subscriptions/${row.stripe_subscription_id}`);

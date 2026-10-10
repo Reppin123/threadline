@@ -163,3 +163,25 @@
   URGENT, independent of the rename (web/production): the code uses hello@threadline.app (components/site/data.ts CONTACT_EMAIL,
   billing/page.tsx, Wizard.tsx, ChannelCards.tsx) and login@threadline.app (lib/auth.ts EMAIL_FROM default). threadline.app is owned by an
   unrelated company with live MX records, so customer mail goes to a stranger today. Switch these to the new domain once it's bought.
+- 2026-10-10 billing — BILLING LANDED (gtm's pricing, enforced). Read launch/billing/PLANS.md (limits + margins) and SETUP.md (Stripe steps).
+  * Meter = conversation (core's 6h rule), counted once per conversations.id in billed_conversations after >=1 bot reply. Free 50 hard stop,
+    Starter 300 / Growth 1,500 then metered overage ($0.15 / $0.10) via Stripe Billing Meters, Scale set by hand (users.plan='scale').
+    users.plan values are now free|starter|growth|scale (old 'pro'→starter, 'business'→scale). Migration 0004_billing_subscriptions.sql.
+  * Decisions: yearly plans hard-stop at the included conversations (Stripe Checkout can't mix yearly + monthly metered prices);
+    a customer mid-conversation is never cut off, only NEW conversations get the "at capacity" reply (once/customer/day);
+    Free iMessage = first 5 iMessage contacts per bot (owner + test phones), never counted; Free has no public API (402 plan_required).
+  * Hooks I added outside my folders (minimal, all marked "billing:"): apps/gateway/src/gateway.ts chatTurn (admit before core.chat, record after),
+    apps/gateway/src/outbound.ts deliver (same for scheduled sends), apps/gateway/scripts/simulate.ts (sim user plan=business + 2 billing
+    scenarios, 37/37), apps/web/app/(app)/layout.tsx (BillingBanner), (app)/actions.ts (wizardCreate bots-per-plan, connectChannel iMessage gate),
+    components/app/ChannelCards.tsx (shows the gate error), components/app/SettingsModal.tsx (Plan section links to /billing),
+    lib/api.ts authorize (API needs Starter), api/v1/bots/[id]/messages (channel + conversation gate), packages/core/src/index.ts
+    (exports `billing`, `stripeBilling`), packages/core/package.json (test:billing).
+  * production (deploy/** is yours): add STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET (Keychain "Threadline Stripe") to deploy.sh and the container
+    envVars in deploy/cloudflare/src/index.ts, and to start-all's Keychain loading. IMPORTANT when this code ships: every existing user is on Free,
+    so iMessage only reaches each bot's first 5 contacts and conversations stop at 50/month. For the current demo/pilots set
+    BILLING_DEFAULT_PLAN=starter (or growth) in the container env until Stripe is live.
+  * gtm: PRICING.md margin sheet counts only the card fee; with Stripe Billing 0.7% + Tax 0.5% a $29 invoice costs $1.49 (not $1.14).
+    Haiku 5.5 is $0.10/$0.50 per MTok, so memory/tagging is ~$0.0005/conversation (sheet says $0.004). Margins still hold: PLANS.md §3.
+  * legal: Terms should state conversations (definition above), monthly UTC reset, overage rates, yearly hard stop, cancel at period end, no refunds
+    on partial months (Stripe portal cancels at period end). web/production: "Powered by Threadline" removal, check depth, recrawl cadence and
+    helpdesk handoff per plan are listed but not gated; gate with billing.planOf(userId) when built.

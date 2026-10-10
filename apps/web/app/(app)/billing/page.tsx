@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { billing, billingState } from "@/lib/billing";
+import { CONTACT_EMAIL, CONTACT_HREF } from "@/components/site/data";
 import "./billing.css";
 
 export const metadata: Metadata = { title: "Billing" };
@@ -121,13 +122,13 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
                 <form action="/api/billing/change" method="post"><input type="hidden" name="plan" value={p.id} />
                   <button className="btn btn-blue" disabled={!can} id={`billing-change-${p.id}`}>Switch to {p.name}</button></form>
               )}
-              {p.id === "scale" && !current && <a className="btn" href="mailto:hello@threadline.app?subject=Threadline%20Scale">Talk to us</a>}
+              {p.id === "scale" && !current && <a className="btn" href={`${CONTACT_HREF}?subject=Threadline%20Scale`}>Talk to us</a>}
             </article>
           );
         })}
       </div>
       <p className="muted bl-small">
-        Add-ons: extra bot {usd(billing.ADDONS.extraBot.priceUsd)}/mo (Starter, Growth), dedicated iMessage number {usd(billing.ADDONS.dedicatedNumber.priceUsd)}/mo (Growth; included in Scale). Email hello@threadline.app to add one.
+        Add-ons: extra bot {usd(billing.ADDONS.extraBot.priceUsd)}/mo (Starter, Growth), dedicated iMessage number {usd(billing.ADDONS.dedicatedNumber.priceUsd)}/mo (Growth; included in Scale). Email {CONTACT_EMAIL} to add one.
         Prices in USD; sales tax is added where it applies. Yearly plans stop at the included conversations each month instead of billing extras.
         Cancel any time under Manage billing and keep your plan until the end of the period you paid for.
       </p>
