@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { markdown, type Message, type Space } from "spectrum-ts";
 import { REPO_ROOT, logEvent } from "@threadline/db";
 import type { Channel, ChatInput, ChatResult } from "@threadline/core/contract";
+import { billing } from "@threadline/core";
 import type { GatewayConfig } from "./config.ts";
 import * as router from "./router.ts";
 import { log } from "./log.ts";
@@ -211,6 +212,13 @@ export class Gateway {
       botId = boundId;
     }
     if (!n.text && !n.attachments.length) return;
+    // billing: count against the owner's monthly allowance; over the limit / channel not on the plan → one polite notice a day.
+    const gate = billing.consumeMessage(botId, b.channel);
+    if (!gate.ok) {
+      const notice = billing.overLimitReply(botId, handle, router.botById(botId)?.name ?? "This assistant", gate.reason);
+      if (notice) await this.sendBubbles(space, b, [notice], botId, { billing: gate.reason });
+      return;
+    }
     logEvent(botId, "message_in", { source: "gateway", channel: b.channel, platform: b.id, handle, chars: n.text.length, attachments: n.attachments.length });
     const input: ChatInput = { botId, channel: b.channel, customerHandle: handle, customerName: n.name, text: n.text, attachments: n.attachments.length ? n.attachments : undefined, location: n.location };
     let result: ChatResult | undefined;

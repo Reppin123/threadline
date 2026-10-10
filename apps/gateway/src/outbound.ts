@@ -5,6 +5,7 @@ import { all, run, get, logEvent } from "@threadline/db";
 import type { Channel } from "@threadline/core/contract";
 import type { Gateway } from "./gateway.ts";
 import * as router from "./router.ts";
+import { billing } from "@threadline/core";
 import { log } from "./log.ts";
 
 interface DueRow {
@@ -72,6 +73,15 @@ export class OutboundWorker {
   private async deliver(r: DueRow): Promise<boolean> {
     if (!this.claim(r.id)) return false;      // someone else has it
     const attempt = r.attempts + 1;
+    if (r.attempts === 0) {                   // billing: a bot-initiated message counts once, on its first attempt
+      const gate = billing.consumeMessage(r.bot_id, r.channel);
+      if (!gate.ok) {
+        run("UPDATE scheduled_messages SET status = 'failed', error = ? WHERE id = ?", [`billing: ${gate.message}`, r.id]);
+        logEvent(r.bot_id, "scheduled_failed", { id: r.id, attempt, error: `billing_${gate.reason}` });
+        this.stats.failed++;
+        return false;
+      }
+    }
     try {
       let text = r.text;
       if (!text) {
