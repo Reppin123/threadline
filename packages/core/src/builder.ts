@@ -2,6 +2,7 @@
 import { run, get, all, id, json, logEvent, tx, encryptJson } from "@threadline/db";
 import type { BotSource, WizardAnswer, BuildProgress, BuildStepId, BuilderReply, BotProfile } from "./contract.ts";
 import { completeJson } from "./llm.ts";
+import { assertBuildAllowed } from "./safety.ts";
 import { getBot, loadDraft, emptyProfile, credentials, type ToolSpec, type TableSpec, type BotConfig } from "./config.ts";
 import { crawlWebsite, fetchText } from "./ingest/website.ts";
 import { extractPage } from "./ingest/extract.ts";
@@ -56,6 +57,7 @@ export async function buildBot(botId: string, onProgress?: (p: BuildProgress) =>
   };
   run("UPDATE bots SET status='building' WHERE id=?", [botId]);
   try {
+    assertBuildAllowed(bot.user_id);   // builds per user per day + kill switch (safety.ts)
     // 1. read source
     progress("read_source", sourceLabel(source));
     const material: Material = { sourceKind: source.kind, sourceLabel: source.kind === "idea" ? source.idea : (source as any).url ?? (source as any).openapiUrl ?? (source as any).docsUrl ?? "", digest: "", catalog: [], faqs: [], notes: (source as any).notes };

@@ -5,7 +5,7 @@ import { all, run, get, logEvent } from "@threadline/db";
 import type { Channel } from "@threadline/core/contract";
 import type { Gateway } from "./gateway.ts";
 import * as router from "./router.ts";
-import { billing, stripeBilling } from "@threadline/core";
+import { billing, stripeBilling, safety } from "@threadline/core";
 import { log } from "./log.ts";
 
 interface DueRow {
@@ -37,7 +37,7 @@ export class OutboundWorker {
 
   /** One pass. Returns the number of rows processed. Safe to call concurrently. */
   async tick(): Promise<number> {
-    if (this.running) return 0;
+    if (this.running || safety.killed("outbound")) return 0;
     this.running = true;
     this.lastTickAt = new Date();
     try {

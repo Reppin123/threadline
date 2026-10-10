@@ -32,3 +32,6 @@ export default core;
 // Billing (agent billing): plans + metering gates, and Stripe checkout/portal/webhooks.
 export * as billing from "./billing.ts";
 export * as stripeBilling from "./billing-stripe.ts";
+export * as safety from "./safety.ts";
+export * as ops from "./ops.ts";
+export * as email from "./email.ts";

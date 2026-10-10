@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ toke
     return NextResponse.redirect(new URL("/login?error=link", process.env.APP_URL || req.url), 303);
   }
   run("UPDATE magic_links SET used_at=? WHERE token=?", [new Date().toISOString(), token]);
-  const u = findOrCreateUser(link.email);
+  const u = findOrCreateUser(link.email, { method: "magic" });
   await createSession(u.id);
   return NextResponse.redirect(new URL(safeNext(link.redirect), process.env.APP_URL || req.url), 303);
 }

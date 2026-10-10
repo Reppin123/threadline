@@ -8,6 +8,9 @@ const ERRORS: Record<string, string> = {
   credentials: "That email and password don't match. Try again, or get a sign-in link by email.",
   link: "That sign-in link has expired or was already used. Ask for a new one below.",
   google: "Google sign-in isn't available right now. Use your email instead.",
+  rate: "Too many attempts. Wait 10 minutes and try again.",
+  capacity: "We're letting new accounts in gradually and today's batch is full. Try again in an hour.",
+  signups_paused: "New signups are paused for a few minutes. Existing accounts can still sign in.",
 };
 
 export function AuthCard(props: { mode: "login" | "signup"; next: string; error?: string; email?: string; method?: string; google: boolean }) {

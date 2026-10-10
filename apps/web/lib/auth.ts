@@ -3,7 +3,8 @@ import "server-only";
 import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { get, run, id } from "@/lib/db";
+import { get, run, id, logEvent } from "@/lib/db";
+import { safety, email as mail, ops } from "@threadline/core";
 
 export const SESSION_COOKIE = "tl_session";
 const SESSION_DAYS = 30;
@@ -51,13 +52,17 @@ export function isEmail(e: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
 
-export function findOrCreateUser(email: string, extra: { name?: string | null; avatar_url?: string | null } = {}): User {
+export function findOrCreateUser(email: string, extra: { name?: string | null; avatar_url?: string | null; method?: string } = {}): User {
   email = normalizeEmail(email);
   let u = get<User>("SELECT * FROM users WHERE email=?", [email]);
   if (!u) {
     const uid = id("usr_");
     run("INSERT INTO users(id,email,name,avatar_url) VALUES (?,?,?,?)", [uid, email, extra.name ?? null, extra.avatar_url ?? null]);
     u = get<User>("SELECT * FROM users WHERE id=?", [uid])!;
+    // production hooks: funnel event (launch/production/METRICS.md), global signup cap, welcome email (fire-and-forget).
+    try { logEvent(null, "signup", { userId: uid, method: extra.method ?? "unknown" }); safety.countSignup(); } catch {}
+    void mail.send(email, mail.welcomeEmail(extra.name), { idempotencyKey: `welcome:${uid}`, tag: "welcome" })
+      .then((r) => { if (!r.sent && r.error !== "not_configured") ops.reportError(new Error(`welcome email: ${r.error}`), { service: "web", where: "email.welcome" }); });
   } else if ((extra.name && !u.name) || (extra.avatar_url && !u.avatar_url)) {
     run("UPDATE users SET name=COALESCE(name,?), avatar_url=COALESCE(avatar_url,?) WHERE id=?", [extra.name ?? null, extra.avatar_url ?? null, u.id]);
   }
@@ -121,19 +126,16 @@ export function createMagicLink(email: string, redirectTo: string): { token: str
 
 export async function sendMagicLinkEmail(email: string, url: string): Promise<boolean> {
   if (!emailProviderConfigured()) return false;
-  try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        from: process.env.EMAIL_FROM || "Threadline <login@threadline.app>",
-        to: [email],
-        subject: "Your Threadline sign-in link",
-        text: `Tap to sign in to Threadline:\n\n${url}\n\nThe link works once and expires in 20 minutes. If you didn't ask for it, ignore this email.`,
-      }),
-    });
-    return r.ok;
-  } catch {
-    return false;
-  }
+  const r = await mail.send(email, mail.magicLinkEmail(url), { tag: "magic_link" });
+  if (!r.sent) ops.reportError(new Error(`magic link email: ${r.error}`), { service: "web", where: "email.magic" });
+  return r.sent;
+}
+
+/** Signup/login rate limits + signup kill switch (core safety.ts). Returns an AuthCard error code or null. */
+export function authBlocked(kind: "magic" | "signup" | "login" | "oauth", req: { headers: Headers }, email: string): string | null {
+  const isNew = !get("SELECT 1 FROM users WHERE email=?", [email]);
+  const v = safety.allowAuth(kind, safety.clientIp(req.headers), email, isNew);
+  if (v.ok) return null;
+  try { logEvent(null, "auth_rate_limited", { kind, reason: v.reason }); } catch {}
+  return v.reason;
 }

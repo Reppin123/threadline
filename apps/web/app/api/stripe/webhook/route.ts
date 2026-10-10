@@ -2,6 +2,7 @@
 // Subscribe the endpoint to: checkout.session.completed, customer.subscription.created|updated|deleted,
 // invoice.payment_failed, invoice.paid. Duplicate deliveries are no-ops (stripe_events).
 import { stripeBilling } from "@/lib/billing";
+import { sendBillingEmail } from "@/lib/billing-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,6 +19,7 @@ export async function POST(req: Request) {
   }
   try {
     const r = stripeBilling.handleStripeEvent(event);
+    if (r.result !== "duplicate") void sendBillingEmail(event);   // production: plan started / payment failed / plan ended
     return Response.json({ received: true, ...r });
   } catch (e) {
     console.error("[billing] webhook", event?.type, e);

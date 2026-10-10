@@ -4,7 +4,7 @@
 import { createServer } from "node:http";
 import { hostname } from "node:os";
 import { all, get, run, json, claimJob, completeJob, failJob, requeueStaleJobs, logEvent, dbPath, type JobRow } from "@threadline/db";
-import { core } from "@threadline/core";
+import { core, ops } from "@threadline/core";
 
 const PORT = Number(process.env.WORKER_PORT || 3200);
 const CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY || 2));
@@ -80,7 +80,7 @@ async function runJob(job: JobRow) {
     const msg = String(e?.stack || e?.message || e).slice(0, 2000);
     state.failed++;
     state.lastError = { jobId: job.id, type: job.type, error: String(e?.message || e), at: new Date().toISOString() };
-    if (e instanceof NonRetryable) run("UPDATE jobs SET attempts=max_attempts WHERE id=?", [job.id]);
+    if (e instanceof NonRetryable || e?.name === "LimitError" || e?.name === "SpendCapError") run("UPDATE jobs SET attempts=max_attempts WHERE id=?", [job.id]);
     failJob(job.id, msg);
     const final = get<{ status: string }>("SELECT status FROM jobs WHERE id=?", [job.id])?.status === "failed";
     if (final && (job.type === "build_bot" || job.type === "recrawl") && typeof payload.botId === "string") {
@@ -89,6 +89,7 @@ async function runJob(job: JobRow) {
         json.str({ step: "done", label: "Build failed", pct: 100, error: String(e?.message || e) }), payload.botId]);
     }
     log(`failed ${job.type} ${job.id}: ${e?.message || e}`);
+    if (final && e?.name !== "LimitError" && e?.name !== "SpendCapError") ops.reportError(e, { service: "worker", where: `job:${job.type}`, jobId: job.id, botId: payload.botId });
     try { logEvent(payload.botId ?? null, "job_failed", { jobId: job.id, type: job.type, error: String(e?.message || e) }); } catch {}
   } finally {
     state.running.delete(job.id);
@@ -169,7 +170,7 @@ async function main() {
   requeueStaleJobs(15);
 
   const server = ONCE ? null : createServer((req, res) => {
-    if (req.url === "/health" || req.url === "/") {
+    if (req.url === "/health" || req.url === "/healthz" || req.url === "/") {
       const h = health();
       res.writeHead(h.ok ? 200 : 503, { "content-type": "application/json" });
       res.end(JSON.stringify(h, null, 2));

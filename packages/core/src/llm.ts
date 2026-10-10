@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { recordUsage, type UsageCategory } from "./usage.ts";
+import { assertLlmAllowed } from "./safety.ts";
 
 export interface ToolDef { name: string; description: string; input_schema: any }
 export interface ToolCall { id: string; name: string; input: any }
@@ -77,6 +78,7 @@ function priceFor(model: string, i: number, o: number) {
 export async function complete(opts: CompleteOpts): Promise<CompleteResult> {
   const t0 = Date.now();
   const p = providerName();
+  if (p !== "offline") assertLlmAllowed(opts.botId);   // spend cap per account + global + kill switch (safety.ts)
   let r: Omit<CompleteResult, "ms" | "provider">;
   if (p === "anthropic") r = await withRetry(() => anthropicComplete(opts));
   else if (p === "openai") r = await withRetry(() => openaiComplete(opts));

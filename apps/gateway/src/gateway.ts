@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { markdown, type Message, type Space } from "spectrum-ts";
 import { REPO_ROOT, logEvent } from "@threadline/db";
 import type { Channel, ChatInput, ChatResult } from "@threadline/core/contract";
-import { billing, stripeBilling } from "@threadline/core";
+import { billing, stripeBilling, safety, ops } from "@threadline/core";
 import type { GatewayConfig } from "./config.ts";
 import * as router from "./router.ts";
 import { log } from "./log.ts";
@@ -212,6 +212,14 @@ export class Gateway {
       botId = boundId;
     }
     if (!n.text && !n.attachments.length) return;
+    // safety: per-customer and per-bot message rate + inbound kill switch. One "slow down" notice per window, core not called.
+    const rate = safety.admitMessage(botId, handle);
+    if (!rate.ok) {
+      this.stats.ignored++;
+      logEvent(botId, "rate_limited", { channel: b.channel, reason: rate.reason });
+      if (rate.notify) await this.sendBubbles(space, b, [safety.SLOW_DOWN_TEXT], botId, { rate: rate.reason });
+      return;
+    }
     // billing: plan must include the channel and, for a NEW conversation, have one left (or billable overage).
     // Refused → one "at capacity" notice per customer per day, core not called.
     const admit = billing.admitTurn(botId, b.channel, handle);
@@ -227,7 +235,8 @@ export class Gateway {
       result = await space.responding(() => this.retry(() => this.core.chat(input), 2, 800));
     } catch (e) {
       this.fail(botId, "core.chat", e);
-      await this.sendBubbles(space, b, ["Sorry — I hit a snag on my side. Mind sending that again in a moment?"], botId);
+      const capped = e instanceof Error && e.name === "SpendCapError";
+      await this.sendBubbles(space, b, [capped ? "I can't answer right now. The team has been notified and I'll be back shortly." : "Sorry — I hit a snag on my side. Mind sending that again in a moment?"], botId);
       return;
     }
     const replies = result.replies.map((r) => r.trim()).filter(Boolean);
@@ -327,6 +336,7 @@ export class Gateway {
     this.stats.errors++;
     const msg = e instanceof Error ? e.message : String(e);
     log.error(`[${stage}] ${msg}`);
+    ops.reportError(e, { service: "gateway", where: stage, botId, ...extra });
     try { logEvent(botId, "gateway_error", { stage, error: msg.slice(0, 500), ...extra }); } catch {}
   }
 }

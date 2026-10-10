@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { appUrl, createSession, findOrCreateUser, googleConfigured, safeNext, unsign } from "@/lib/auth";
+import { appUrl, authBlocked, createSession, findOrCreateUser, googleConfigured, safeNext, unsign } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
     if (!tok.access_token) return fail();
     const info = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { Authorization: `Bearer ${tok.access_token}` } }).then((r) => r.json());
     if (!info.email || info.email_verified === false) return fail();
-    const u = findOrCreateUser(info.email, { name: info.name, avatar_url: info.picture });
+    const blocked = authBlocked("oauth", req, String(info.email).toLowerCase());
+    if (blocked) return NextResponse.redirect(new URL(`/login?error=${blocked}`, process.env.APP_URL || req.url), 303);
+    const u = findOrCreateUser(info.email, { name: info.name, avatar_url: info.picture, method: "google" });
     await createSession(u.id);
     const res = NextResponse.redirect(new URL(safeNext(saved.next), process.env.APP_URL || req.url), 303);
     res.cookies.delete("tl_oauth");

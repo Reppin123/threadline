@@ -33,7 +33,7 @@ export function startServer(gw: Gateway, transports: TransportSet, outbound: Out
     };
     try {
       const url = new URL(req.url ?? "/", "http://x");
-      if (req.method === "GET" && (url.pathname === "/health" || url.pathname === "/")) {
+      if (req.method === "GET" && (url.pathname === "/health" || url.pathname === "/healthz" || url.pathname === "/")) {
         const h = healthSnapshot(gw, transports, outbound);
         return send(h.ok ? 200 : 503, h);
       }
@@ -61,7 +61,7 @@ export function startServer(gw: Gateway, transports: TransportSet, outbound: Out
           return send(502, { error: `could not send: ${e instanceof Error ? e.message : e}` });
         }
       }
-      send(404, { error: "not found", routes: ["GET /health", "POST /spectrum/webhook", "POST /invite"] });
+      send(404, { error: "not found", routes: ["GET /health", "GET /healthz", "POST /spectrum/webhook", "POST /invite"] });
     } catch (e) {
       gw.fail(null, "http", e);
       send(500, { error: "internal error" });
