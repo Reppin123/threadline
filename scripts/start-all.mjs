@@ -43,6 +43,8 @@ const KEYCHAIN = [
   { service: "Threadline Spectrum", account: "SPECTRUM_PROJECT_ID", alt: "PHOTON_PROJECT_ID" },
   { service: "Threadline Spectrum", account: "SPECTRUM_PROJECT_SECRET", alt: "PHOTON_PROJECT_SECRET" },
   { service: "Threadline Anthropic", account: "ANTHROPIC_API_KEY" },
+  { service: "Threadline Stripe", account: "STRIPE_SECRET_KEY" },
+  { service: "Threadline Stripe", account: "STRIPE_WEBHOOK_SECRET" },
 ];
 const keychainLoaded = [];
 if (process.platform === "darwin" && process.env.THREADLINE_NO_KEYCHAIN !== "1") {

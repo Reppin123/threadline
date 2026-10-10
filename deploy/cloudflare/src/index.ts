@@ -4,6 +4,8 @@
 //     only run while the container runs) and alerts ALERT_WEBHOOK_URL when the whole container is unhealthy or unreachable.
 //   - MAINTENANCE=1 → 503 page for every request except /healthz, without touching the container (instant kill switch).
 //   - CF_BEACON_TOKEN → injects the cookieless Cloudflare Web Analytics beacon into HTML pages.
+//   - POST /__ops/restart with "Authorization: Bearer $OPS_TOKEN" → graceful container restart (SIGTERM: snapshot flush, worker drain).
+//     After `wrangler secret put THREADLINE_KILL ...` this is how the new env reaches the running container in about a minute.
 //   - CANONICAL_HOST (e.g. heybell.app) → 301 browser traffic from other hosts (workers.dev) there; /api/* stays put.
 import { Container, getContainer } from "@cloudflare/containers";
 
@@ -35,11 +37,22 @@ interface Env {
   CF_BEACON_TOKEN?: string;
   CANONICAL_HOST?: string;
   DEMO_DEV_LINKS?: string;
+  OPS_TOKEN?: string;
+  BILLING_DEFAULT_PLAN?: string;
+  SUPABASE_SNAPSHOT_OBJECT?: string;
+  SIGNUP_GLOBAL_PER_HOUR?: string;
+  LLM_CAP_GLOBAL_DAY?: string;
 }
 
 // Passed into the container only when set on the Worker.
 const OPTIONAL = ["RESEND_API_KEY", "EMAIL_FROM", "BRAND_NAME", "SENTRY_DSN", "ALERT_WEBHOOK_URL", "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET",
-  "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "IMESSAGE_LINE_HANDLE", "GATEWAY_ADMIN_TOKEN", "THREADLINE_KILL", "RELEASE"] as const;
+  "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "IMESSAGE_LINE_HANDLE", "GATEWAY_ADMIN_TOKEN", "THREADLINE_KILL", "RELEASE",
+  // billing: every existing user is on Free; set "starter" for pilots until Stripe is live (COORDINATION 2026-10-10 billing).
+  "BILLING_DEFAULT_PLAN",
+  // Data rollback (RUNBOOK.md §6): point a fresh container at an uploaded good copy instead of the bad "latest".
+  "SUPABASE_SNAPSHOT_OBJECT",
+  // Launch-day knobs (RUNBOOK.md §7), defaults in packages/core/src/safety.ts.
+  "SIGNUP_GLOBAL_PER_HOUR", "LLM_CAP_GLOBAL_DAY"] as const;
 
 export class App extends Container<Env> {
   defaultPort = 3000;
@@ -91,6 +104,11 @@ async function notify(env: Env, text: string) {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/__ops/restart") {
+      if (request.method !== "POST" || !env.OPS_TOKEN || request.headers.get("authorization") !== `Bearer ${env.OPS_TOKEN}`) return new Response("not found", { status: 404 });
+      await app(env).stop();
+      return Response.json({ ok: true, restarting: true, note: "next request or the 5-min cron starts it with the current env" });
+    }
     if (env.MAINTENANCE === "1" && url.pathname !== "/healthz") return maintenancePage();
     if (env.CANONICAL_HOST && url.hostname !== env.CANONICAL_HOST && url.hostname.endsWith(".workers.dev") && !url.pathname.startsWith("/api/")
         && (request.method === "GET" || request.method === "HEAD")) {

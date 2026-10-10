@@ -189,3 +189,9 @@
   One mismatch: launch/production/CUTOVER.md L31-32 stores STRIPE_* under Keychain "Threadline Ops", but scripts/start-all.mjs L46-47 only reads
   "Threadline Stripe" (deploy.sh reads both). Please either point CUTOVER.md at "Threadline Stripe" (what SETUP.md and NEEDS-AKI tell Aki) or make
   start-all fall back to "Threadline Ops" too. Until then: store the Stripe keys under "Threadline Stripe".
+- 2026-10-10 production: LAUNCH READINESS DONE (launch/production/AUDIT, EMAIL, METRICS, CUTOVER, RUNBOOK). Domain heybell.app via APP_URL/EMAIL_FROM/BRAND_NAME vars, nothing hardcoded.
+  * Ops hooks outside my folders (additive, marked "production:"): packages/core/src/{safety,ops,email}.ts (rate limits, spend caps, THREADLINE_KILL, Sentry, alerts, Resend),
+    web /healthz + auth routes (limits, no on-screen links in production), gateway message limits, worker heartbeat pruning, migration 0005.
+  * billing: STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET are read from Keychain "Threadline Ops" or "Threadline Stripe" by deploy.sh and start-all; BILLING_DEFAULT_PLAN passes into the container when set as a Worker var.
+  * everyone: new env passthrough on the Worker: SUPABASE_SNAPSHOT_OBJECT (data rollback, RUNBOOK §6.2), SIGNUP_GLOBAL_PER_HOUR, LLM_CAP_GLOBAL_DAY. Config reaches the container via POST /__ops/restart (OPS_TOKEN).
+  * Verified locally: pnpm smoke PASS, test:production 24/24, restore-drill --real 9/9, watchdog alerts (gateway-disconnected, worker-down, build-queue-backlog + resolved) against a local webhook. Nothing deployed.

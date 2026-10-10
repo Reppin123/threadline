@@ -14,8 +14,9 @@ kc "Threadline Supabase" SUPABASE_URL | npx wrangler secret put SUPABASE_URL >/d
 kc "Threadline Supabase" SUPABASE_SERVICE_ROLE_KEY | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY >/dev/null && echo "set supabase key"
 # Optional launch secrets (production agent): pushed only if Aki stored them in Keychain item "Threadline Ops" first.
 #   security add-generic-password -U -s "Threadline Ops" -a RESEND_API_KEY -w   (prompts for the value; never paste into files)
-for k in RESEND_API_KEY SENTRY_DSN ALERT_WEBHOOK_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GATEWAY_ADMIN_TOKEN CF_BEACON_TOKEN; do
-  if v=$(kc "Threadline Ops" "$k" 2>/dev/null) && [ -n "$v" ]; then printf %s "$v" | npx wrangler secret put "$k" >/dev/null && echo "set $k"; fi
+for k in RESEND_API_KEY SENTRY_DSN ALERT_WEBHOOK_URL STRIPE_SECRET_KEY STRIPE_WEBHOOK_SECRET GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GATEWAY_ADMIN_TOKEN CF_BEACON_TOKEN IMESSAGE_LINE_HANDLE OPS_TOKEN; do
+  # Stripe keys may live in billing's Keychain item "Threadline Stripe" (launch/billing/SETUP.md) instead.
+  if { v=$(kc "Threadline Ops" "$k" 2>/dev/null) || v=$(kc "Threadline Stripe" "$k" 2>/dev/null); } && [ -n "$v" ]; then printf %s "$v" | npx wrangler secret put "$k" >/dev/null && echo "set $k"; fi
 done
 # Set once: it is also THREADLINE_ENCRYPTION_KEY, so rotating it would orphan encrypted creds in the persisted DB.
 if npx wrangler secret list 2>/dev/null | grep -q '"AUTH_SECRET"'; then echo "auth secret kept"

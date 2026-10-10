@@ -185,6 +185,8 @@ async function main() {
   const timers = ONCE ? [] : [
     setInterval(heartbeat, HEARTBEAT_MS),
     setInterval(() => { try { requeueStaleJobs(15); } catch {} }, 60_000),
+    // production: heartbeats are ~2,900 rows/day and only the recent ones matter; keep the snapshot small.
+    setInterval(() => { try { run("DELETE FROM events WHERE type IN ('worker_heartbeat','gateway_heartbeat') AND created_at < datetime('now', ?)", [`-${Number(process.env.HEARTBEAT_RETENTION_DAYS || 7)} days`]); } catch {} }, 3_600_000),
   ];
   if (!ONCE) heartbeat();
 
