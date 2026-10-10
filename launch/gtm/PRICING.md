@@ -36,6 +36,9 @@ Why this shape:
 - **Undercuts helpdesk AI by 5x to 10x per conversation.** Gorgias AI Agent charges $0.90 to $1.00 per automated interaction and
   Intercom Fin $0.99 per outcome. Our effective price is $0.10 (Growth: $149 / 1,500) to $0.10 to $0.15 overage. Those tools stay
   as the inbox we hand off to; we are a new channel, not a rip-and-replace.
+- **Sits under the Shopify-native alternatives.** Postscript's AI Plan with the Shopper sales agent is $699/mo (postscript.io/pricing);
+  Chatty, the top-rated Shopify chat app, is $19.99 / $68.99 / $199 for 100 / 500 / 1,000 AI conversations with $0.40 overage
+  (apps.shopify.com, research/icp-inbound.md B7). Starter gives 300 for $29; Growth 1,500 for $149.
 - **Conversations, not messages or seats.** Brands budget per customer contact; SMS tools bill per message, which punishes the
   back-and-forth an agent needs.
 - Replaces the pitch deck's "$0.50/conversation, $99 minimum" draft: a $99 floor loses the solo founder, and $0.50 is
