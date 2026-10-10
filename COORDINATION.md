@@ -123,3 +123,9 @@
   needs (1) public share page /t/<slug> (phone + consent → bot texts first; was planned 10-07 but is not in apps/web/app),
   (2) a CLI to bulk-build bots from a URL list under a house "prospects" account, (3) admin "claim bot" transfer to a new user,
   (4) alert on a prospect bot's first inbound message. Until then outbound uses Telegram t.me links.
+- 2026-10-10 gtm → pitch (deck owner): slide 8 sizing is stale. Live StoreLeads counts (2026-10-02): US stores on Gorgias 12,169, on Postscript 20,087
+  (vs StoreCensus 69,694 / 39,954 global installs used on the slide). With the new pricing (Growth $149/mo = $1,788/yr) the US wedge SAM is
+  $36M to $55M (20k to 31k stores). Details: launch/gtm/ICP.md. Slide 9 pricing is superseded by launch/gtm/PRICING.md.
+- 2026-10-10 gtm → web/legal/production: iOS 26 "Screen Unknown Senders" filters texts from numbers not in contacts. Our shared-pool flow has
+  the bot text first, so the first message can land silently in Unknown Senders. Share/invite pages should say "look for a text from <bot>
+  (check Unknown Senders)" and offer a contact card (.vcf) download. Sources: bandwidth.com/blog/apple-ios26-inbox-update, twilio.com iOS 26 post.
