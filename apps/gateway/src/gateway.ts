@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { markdown, type Message, type Space } from "spectrum-ts";
 import { REPO_ROOT, logEvent } from "@threadline/db";
 import type { Channel, ChatInput, ChatResult } from "@threadline/core/contract";
-import { billing } from "@threadline/core";
+import { billing, stripeBilling } from "@threadline/core";
 import type { GatewayConfig } from "./config.ts";
 import * as router from "./router.ts";
 import { log } from "./log.ts";
@@ -212,11 +212,12 @@ export class Gateway {
       botId = boundId;
     }
     if (!n.text && !n.attachments.length) return;
-    // billing: count against the owner's monthly allowance; over the limit / channel not on the plan → one polite notice a day.
-    const gate = billing.consumeMessage(botId, b.channel);
-    if (!gate.ok) {
-      const notice = billing.overLimitReply(botId, handle, router.botById(botId)?.name ?? "This assistant", gate.reason);
-      if (notice) await this.sendBubbles(space, b, [notice], botId, { billing: gate.reason });
+    // billing: plan must include the channel and, for a NEW conversation, have one left (or billable overage).
+    // Refused → one "at capacity" notice per customer per day, core not called.
+    const admit = billing.admitTurn(botId, b.channel, handle);
+    if (!admit.ok) {
+      const notice = billing.overLimitReply(botId, handle, router.botById(botId)?.name ?? "This assistant", admit.reason);
+      if (notice) await this.sendBubbles(space, b, [notice], botId, { billing: admit.reason });
       return;
     }
     logEvent(botId, "message_in", { source: "gateway", channel: b.channel, platform: b.id, handle, chars: n.text.length, attachments: n.attachments.length });
@@ -230,6 +231,7 @@ export class Gateway {
       return;
     }
     const replies = result.replies.map((r) => r.trim()).filter(Boolean);
+    if (admit.billable && replies.length && billing.recordConversation(botId, result.conversationId, b.channel).overage) void stripeBilling.reportOverage().catch(() => {});
     await this.sendBubbles(space, b, replies, botId, { conversationId: result.conversationId });
   }
 

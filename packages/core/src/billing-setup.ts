@@ -1,5 +1,5 @@
-// One-time Stripe setup: Threadline Pro product + $29/mo price (lookup_key threadline_pro_monthly) + a Customer Portal
-// configuration. Idempotent: re-running finds what exists. Needs STRIPE_SECRET_KEY (test mode: sk_test_...) in env.
+// One-time Stripe setup: overage Billing Meter, Starter/Growth products with monthly, yearly and metered overage prices,
+// add-on prices (extra bot, dedicated number) and a Customer Portal configuration. Idempotent: re-running finds what exists. Needs STRIPE_SECRET_KEY (test mode: sk_test_...) in env.
 //   STRIPE_SECRET_KEY=sk_test_... node --experimental-strip-types packages/core/src/billing-setup.ts
 import { setupStripeCatalog, stripeConfigured, stripeMode } from "./billing-stripe.ts";
 

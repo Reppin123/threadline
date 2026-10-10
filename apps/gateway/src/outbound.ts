@@ -5,7 +5,7 @@ import { all, run, get, logEvent } from "@threadline/db";
 import type { Channel } from "@threadline/core/contract";
 import type { Gateway } from "./gateway.ts";
 import * as router from "./router.ts";
-import { billing } from "@threadline/core";
+import { billing, stripeBilling } from "@threadline/core";
 import { log } from "./log.ts";
 
 interface DueRow {
@@ -73,19 +73,19 @@ export class OutboundWorker {
   private async deliver(r: DueRow): Promise<boolean> {
     if (!this.claim(r.id)) return false;      // someone else has it
     const attempt = r.attempts + 1;
-    if (r.attempts === 0) {                   // billing: a bot-initiated message counts once, on its first attempt
-      const gate = billing.consumeMessage(r.bot_id, r.channel);
-      if (!gate.ok) {
-        run("UPDATE scheduled_messages SET status = 'failed', error = ? WHERE id = ?", [`billing: ${gate.message}`, r.id]);
-        logEvent(r.bot_id, "scheduled_failed", { id: r.id, attempt, error: `billing_${gate.reason}` });
-        this.stats.failed++;
-        return false;
-      }
+    // billing: a bot-initiated message opens (or continues) a conversation like a reply does; refused → failed, not retried.
+    const admit = billing.admitTurn(r.bot_id, r.channel, r.handle);
+    if (!admit.ok) {
+      run("UPDATE scheduled_messages SET status = 'failed', error = ? WHERE id = ?", [`billing: ${admit.message}`, r.id]);
+      logEvent(r.bot_id, "scheduled_failed", { id: r.id, attempt, error: `billing_${admit.reason}` });
+      this.stats.failed++;
+      return false;
     }
     try {
       let text = r.text;
+      let conversationId: string | undefined;
       if (!text) {
-        text = (await this.gw.core.composeOutbound(r.bot_id, r.channel, r.handle, r.prompt)).text;
+        ({ text, conversationId } = await this.gw.core.composeOutbound(r.bot_id, r.channel, r.handle, r.prompt));
         run("UPDATE scheduled_messages SET text = ? WHERE id = ?", [text, r.id]);   // a retry re-sends the same words
       }
       const { space, binding } = await this.gw.spaceFor(r.channel, r.handle, r.bot_id);
@@ -94,6 +94,10 @@ export class OutboundWorker {
       const body = bound && bound !== r.bot_id ? `${r.bot_name}: ${text}` : text;
       await this.gw.sendBubbles(space, binding, [body], r.bot_id, { scheduledId: r.id });
       run("UPDATE scheduled_messages SET status = 'sent', sent_at = datetime('now'), error = NULL WHERE id = ?", [r.id]);
+      if (admit.billable) {
+        const conv = conversationId || billing.activeConversationId(r.bot_id, r.channel, r.handle) || `sched:${r.id}`;
+        if (billing.recordConversation(r.bot_id, conv, r.channel).overage) void stripeBilling.reportOverage().catch(() => {});
+      }
       logEvent(r.bot_id, "scheduled_sent", { id: r.id, channel: r.channel, attempt });
       this.stats.sent++;
       return true;

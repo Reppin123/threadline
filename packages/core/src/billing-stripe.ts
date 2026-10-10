@@ -1,8 +1,9 @@
-// Stripe over plain fetch (no SDK dependency): checkout, customer portal, webhook verification and subscription sync.
-// Keys come only from env (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET). Live keys are refused unless STRIPE_ALLOW_LIVE=1.
+// Stripe over plain fetch (no SDK dependency): checkout, customer portal, webhook verification, subscription sync and
+// metered overage (Billing Meters). Keys come only from env (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET).
+// Live keys are refused unless STRIPE_ALLOW_LIVE=1.
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { get, run, tx, logEvent } from "@threadline/db";
-import { PLANS, asPlanId, type PlanId } from "./billing.ts";
+import { get, all, run, tx, logEvent } from "@threadline/db";
+import { PLANS, ADDONS, asPlanId, type PlanId, type Interval } from "./billing.ts";
 
 export class BillingError extends Error {
   status: number;
@@ -20,6 +21,8 @@ export function stripeMode(): "test" | "live" | "off" {
   if (!stripeConfigured()) return "off";
   return (process.env.STRIPE_SECRET_KEY || "").startsWith("sk_live_") ? "live" : "test";
 }
+/** Billing Meter event name for overage conversations (created by the setup script). */
+export const meterEventName = () => process.env.STRIPE_METER_EVENT || "threadline_overage_conversation";
 
 // ───────── HTTP ─────────
 type Params = Record<string, unknown>;
@@ -56,17 +59,16 @@ export async function stripe<T = any>(method: "GET" | "POST", path: string, para
   return j as T;
 }
 
+
 // ───────── Prices / customers ─────────
-export async function priceForPlan(plan: PlanId): Promise<{ id: string }> {
-  const key = PLANS[plan].lookupKey;
-  if (!key) throw new BillingError(`The ${PLANS[plan].name} plan is not sold through checkout. Email hello@threadline.app.`);
+async function priceByLookupKey(key: string): Promise<{ id: string } | undefined> {
   const r = await stripe<{ data: { id: string }[] }>("GET", "/v1/prices", { lookup_keys: [key], active: true, limit: 1 });
-  if (!r.data[0]) throw new BillingError(`No Stripe price with lookup_key ${key}. Run the billing setup script first.`, 503);
   return r.data[0];
 }
 
 export function subscriptionRow(userId: string) {
-  return get<{ user_id: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; plan: string; status: string; current_period_end: string | null; cancel_at_period_end: number; payment_failed_at: string | null }>(
+  return get<{ user_id: string; stripe_customer_id: string | null; stripe_subscription_id: string | null; plan: string; interval: string | null; status: string;
+    overage_price_id: string | null; extra_bots: number; dedicated_numbers: number; current_period_end: string | null; cancel_at_period_end: number; payment_failed_at: string | null }>(
     "SELECT * FROM subscriptions WHERE user_id=?", [userId]);
 }
 
@@ -82,22 +84,36 @@ export async function ensureCustomer(user: { id: string; email: string; name?: s
 
 const PAID_STATUSES = new Set(["active", "trialing", "past_due"]);
 
-export async function createCheckoutSession(user: { id: string; email: string; name?: string | null }, plan: PlanId, appUrl: string): Promise<string> {
+/** Checkout for a self-serve plan. Monthly = base price + metered overage item (one invoice a month).
+ *  Yearly = base price only: Stripe Checkout can't mix a yearly and a monthly price in one subscription
+ *  (docs.stripe.com/billing/subscriptions/mixed-interval, "Limitations"), so yearly plans stop at the included conversations. */
+export async function createCheckoutSession(user: { id: string; email: string; name?: string | null }, planId: PlanId, interval: Interval, appUrl: string): Promise<string> {
+  const plan = PLANS[planId];
+  if (!plan.selfServe || !plan.lookupKeys) throw new BillingError(`The ${plan.name} plan is set up with our team. Email hello@threadline.app.`);
   const sub = subscriptionRow(user.id);
   if (sub && PAID_STATUSES.has(sub.status) && sub.stripe_subscription_id) throw new BillingError("You already have a subscription. Use Manage billing to change it.");
-  const price = await priceForPlan(plan);
+  const base = await priceByLookupKey(plan.lookupKeys[interval]);
+  if (!base) throw new BillingError(`No Stripe price with lookup_key ${plan.lookupKeys[interval]}. Run the billing setup script first.`, 503);
+  const lineItems: Record<string, unknown>[] = [{ price: base.id, quantity: 1 }];
+  if (interval === "month") {
+    const over = await priceByLookupKey(plan.lookupKeys.overage);
+    if (!over) throw new BillingError(`No Stripe price with lookup_key ${plan.lookupKeys.overage}. Run the billing setup script first.`, 503);
+    lineItems.push({ price: over.id });   // metered: no quantity
+  }
   const customer = await ensureCustomer(user);
+  const tax = process.env.STRIPE_AUTOMATIC_TAX === "1";
   const s = await stripe<{ url: string }>("POST", "/v1/checkout/sessions", {
     mode: "subscription",
     customer,
     client_reference_id: user.id,
-    line_items: [{ price: price.id, quantity: 1 }],
+    line_items: lineItems,
     allow_promotion_codes: true,
     billing_address_collection: "auto",
-    automatic_tax: process.env.STRIPE_AUTOMATIC_TAX === "1" ? { enabled: true } : undefined,
-    customer_update: process.env.STRIPE_AUTOMATIC_TAX === "1" ? { address: "auto" } : undefined,
-    subscription_data: { metadata: { user_id: user.id, plan } },
-    metadata: { user_id: user.id, plan },
+    automatic_tax: tax ? { enabled: true } : undefined,
+    customer_update: tax ? { address: "auto", name: "auto" } : undefined,
+    tax_id_collection: tax ? { enabled: true } : undefined,
+    subscription_data: { metadata: { user_id: user.id, plan: planId, interval } },
+    metadata: { user_id: user.id, plan: planId, interval },
     success_url: `${appUrl}/billing?checkout=success`,
     cancel_url: `${appUrl}/billing?checkout=cancelled`,
   });
@@ -113,11 +129,69 @@ export async function createPortalSession(userId: string, appUrl: string): Promi
   return s.url;
 }
 
+/** Switch an active subscription between self-serve plans (same billing interval), prorated. The webhook that follows
+ *  (customer.subscription.updated) moves users.plan. */
+export async function changePlan(userId: string, planId: PlanId): Promise<void> {
+  const plan = PLANS[planId];
+  if (!plan.selfServe || !plan.lookupKeys) throw new BillingError(`The ${plan.name} plan is set up with our team. Email hello@threadline.app.`);
+  const row = subscriptionRow(userId);
+  if (!row?.stripe_subscription_id || !PAID_STATUSES.has(row.status)) throw new BillingError("No active subscription to change. Upgrade first.");
+  const sub = await stripe<any>("GET", `/v1/subscriptions/${row.stripe_subscription_id}`);
+  const cur = parseSubscription(sub);
+  if (cur.plan === planId) throw new BillingError(`You're already on ${plan.name}.`);
+  const interval: Interval = cur.interval ?? "month";
+  const base = await priceByLookupKey(plan.lookupKeys[interval]);
+  const over = interval === "month" ? await priceByLookupKey(plan.lookupKeys.overage) : undefined;
+  if (!base || (interval === "month" && !over)) throw new BillingError("Stripe prices are missing. Run the billing setup script first.", 503);
+  const items: Record<string, unknown>[] = [];
+  for (const it of sub.items?.data ?? []) {
+    const key = it.price?.lookup_key ?? "";
+    if (key === ADDONS.extraBot.lookupKey || key === ADDONS.dedicatedNumber.lookupKey) continue;
+    if (it.price?.recurring?.usage_type === "metered") items.push(over ? { id: it.id, price: over.id } : { id: it.id, deleted: true });
+    else items.push({ id: it.id, price: base.id, quantity: 1 });
+  }
+  if (over && !items.some((i) => i.price === over.id)) items.push({ price: over.id });
+  await stripe("POST", `/v1/subscriptions/${row.stripe_subscription_id}`, {
+    items, proration_behavior: "create_prorations", metadata: { user_id: userId, plan: planId, interval },
+  }, { idempotencyKey: `change:${row.stripe_subscription_id}:${planId}:${Date.now() >> 16}` });
+}
+
 /** STRIPE_PORTAL_CONFIGURATION, else the one the setup script made (metadata.threadline=1), else Stripe's default. */
 async function portalConfiguration(): Promise<string | undefined> {
   if (process.env.STRIPE_PORTAL_CONFIGURATION) return process.env.STRIPE_PORTAL_CONFIGURATION;
   const configs = await stripe<{ data: { id: string; metadata?: Record<string, string> }[] }>("GET", "/v1/billing_portal/configurations", { active: true, limit: 100 });
   return configs.data.find((c) => c.metadata?.threadline === "1")?.id;
+}
+
+// ───────── Overage reporting (Billing Meters) ─────────
+let reporting: Promise<number> | null = null;
+/** Send unreported overage conversations to Stripe as meter events (identifier = conversation id, so a retry never
+ *  double-bills). Single-flight; safe to call after every recorded conversation. Returns how many were reported. */
+export function reportOverage(limit = 50): Promise<number> {
+  if (!stripeConfigured()) return Promise.resolve(0);
+  if (reporting) return reporting;
+  reporting = (async () => {
+    const rows = all<{ conversation_id: string; created_at: string; stripe_customer_id: string | null }>(
+      `SELECT bc.conversation_id, bc.created_at, s.stripe_customer_id FROM billed_conversations bc LEFT JOIN subscriptions s ON s.user_id = bc.user_id
+        WHERE bc.overage = 1 AND bc.reported_at IS NULL AND julianday(bc.created_at) >= julianday('now', '-34 days') ORDER BY bc.created_at LIMIT ?`, [limit]);
+    let n = 0;
+    for (const r of rows) {
+      if (!r.stripe_customer_id) { run("UPDATE billed_conversations SET report_error='no stripe customer' WHERE conversation_id=?", [r.conversation_id]); continue; }
+      try {
+        await stripe("POST", "/v1/billing/meter_events", {
+          event_name: meterEventName(), identifier: r.conversation_id,
+          timestamp: Math.floor(new Date(r.created_at.replace(" ", "T") + "Z").getTime() / 1000),
+          payload: { stripe_customer_id: r.stripe_customer_id, value: 1 },
+        }, { idempotencyKey: `meter:${r.conversation_id}` });
+        run("UPDATE billed_conversations SET reported_at=datetime('now'), report_error=NULL WHERE conversation_id=?", [r.conversation_id]);
+        n++;
+      } catch (e) {
+        run("UPDATE billed_conversations SET report_error=? WHERE conversation_id=?", [String((e as Error).message).slice(0, 300), r.conversation_id]);
+      }
+    }
+    return n;
+  })().finally(() => { reporting = null; });
+  return reporting;
 }
 
 // ───────── Webhooks ─────────
@@ -139,13 +213,29 @@ export function verifyWebhook(payload: string, header: string | null, secret: st
   try { return JSON.parse(payload); } catch { throw new BillingError("Webhook body is not JSON.", 400); }
 }
 
+
 const iso = (sec: number | null | undefined) => (sec ? new Date(sec * 1000).toISOString() : null);
 
-function planFromSubscription(sub: any): PlanId {
-  const item = sub?.items?.data?.[0];
-  const price = item?.price ?? sub?.plan ?? {};
-  const byKey = (Object.values(PLANS).find((p) => p.lookupKey && p.lookupKey === price.lookup_key))?.id;
-  return byKey ?? asPlanId(price?.metadata?.plan ?? sub?.metadata?.plan);
+interface Parsed { plan: PlanId; interval: Interval | null; basePrice: string | null; overagePrice: string | null; extraBots: number; dedicatedNumbers: number; periodEnd: number | null }
+/** Read plan, interval and add-ons off the subscription items (by price lookup_key, then price/subscription metadata). */
+export function parseSubscription(sub: any): Parsed {
+  const out: Parsed = { plan: "free", interval: null, basePrice: null, overagePrice: null, extraBots: 0, dedicatedNumbers: 0, periodEnd: sub?.current_period_end ?? null };
+  for (const item of sub?.items?.data ?? []) {
+    const price = item.price ?? {};
+    const key: string = price.lookup_key ?? "";
+    const qty = Number(item.quantity ?? 1);
+    if (key === ADDONS.extraBot.lookupKey || price.metadata?.addon === "extra_bot") { out.extraBots += qty; continue; }
+    if (key === ADDONS.dedicatedNumber.lookupKey || price.metadata?.addon === "dedicated_number") { out.dedicatedNumbers += qty; continue; }
+    const plan = Object.values(PLANS).find((p) => p.lookupKeys && Object.values(p.lookupKeys).includes(key));
+    const isOverage = (plan && plan.lookupKeys!.overage === key) || price.metadata?.kind === "overage" || price.recurring?.usage_type === "metered";
+    if (isOverage) { out.overagePrice = price.id ?? null; continue; }
+    out.plan = plan?.id ?? asPlanId(price.metadata?.plan ?? sub?.metadata?.plan);
+    out.interval = key.endsWith("_yearly") || price.recurring?.interval === "year" ? "year" : "month";
+    out.basePrice = price.id ?? null;
+    out.periodEnd = item.current_period_end ?? out.periodEnd;
+  }
+  if (!out.basePrice) out.plan = asPlanId(sub?.metadata?.plan);
+  return out;
 }
 
 function userForCustomer(customerId: string | null | undefined, metaUserId?: string | null): string | undefined {
@@ -154,36 +244,34 @@ function userForCustomer(customerId: string | null | undefined, metaUserId?: str
   return get<{ user_id: string }>("SELECT user_id FROM subscriptions WHERE stripe_customer_id=?", [customerId])?.user_id;
 }
 
-/** Plan to apply for a Stripe subscription status. past_due keeps the plan (Stripe retries the card); anything else ends it. */
-function effectivePlan(status: string, plan: PlanId): PlanId {
-  return PAID_STATUSES.has(status) ? plan : "free";
-}
-
 function applySubscription(sub: any, eventCreated: number, deleted: boolean): string {
   const customer = typeof sub.customer === "string" ? sub.customer : sub.customer?.id;
   const userId = userForCustomer(customer, sub.metadata?.user_id);
   if (!userId) return "ignored: unknown customer";
   const prev = subscriptionRow(userId) as any;
-  if (prev && prev.last_event_created > eventCreated && prev.stripe_subscription_id === sub.id) return "ignored: stale event";
+  if (prev && prev.stripe_subscription_id === sub.id && prev.last_event_created > eventCreated) return "ignored: stale event";
   // A different, older subscription ending must not cancel the one that is live now.
   if (deleted && prev?.stripe_subscription_id && prev.stripe_subscription_id !== sub.id && PAID_STATUSES.has(prev.status)) return "ignored: not the current subscription";
   const status = deleted ? "canceled" : String(sub.status ?? "active");
-  const plan = planFromSubscription(sub);
-  const item = sub.items?.data?.[0];
-  const periodEnd = sub.current_period_end ?? item?.current_period_end;
-  const applied = effectivePlan(status, plan);
+  const p = parseSubscription(sub);
+  // past_due keeps the plan (Stripe retries the card); canceled/unpaid/incomplete* end it.
+  const applied: PlanId = PAID_STATUSES.has(status) ? p.plan : "free";
   tx(() => {
-    run(`INSERT INTO subscriptions(user_id, stripe_customer_id, stripe_subscription_id, plan, status, price_id, current_period_end, cancel_at_period_end, last_event_created, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
+    run(`INSERT INTO subscriptions(user_id, stripe_customer_id, stripe_subscription_id, plan, interval, status, price_id, overage_price_id, extra_bots,
+           dedicated_numbers, current_period_end, cancel_at_period_end, last_event_created, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
          ON CONFLICT(user_id) DO UPDATE SET stripe_customer_id=excluded.stripe_customer_id, stripe_subscription_id=excluded.stripe_subscription_id,
-           plan=excluded.plan, status=excluded.status, price_id=excluded.price_id, current_period_end=excluded.current_period_end,
+           plan=excluded.plan, interval=excluded.interval, status=excluded.status, price_id=excluded.price_id, overage_price_id=excluded.overage_price_id,
+           extra_bots=excluded.extra_bots, dedicated_numbers=excluded.dedicated_numbers, current_period_end=excluded.current_period_end,
            cancel_at_period_end=excluded.cancel_at_period_end, last_event_created=excluded.last_event_created, updated_at=excluded.updated_at,
            payment_failed_at=CASE WHEN excluded.status IN ('active','trialing') THEN NULL ELSE subscriptions.payment_failed_at END`,
-      [userId, customer ?? null, sub.id, plan, status, item?.price?.id ?? null, iso(periodEnd), sub.cancel_at_period_end ? 1 : 0, eventCreated]);
-    // Business is granted by hand (users.plan='business'); Stripe never downgrades it.
-    run("UPDATE users SET plan=? WHERE id=? AND plan<>'business'", [applied, userId]);
+      [userId, customer ?? null, sub.id, p.plan, p.interval, status, p.basePrice, p.overagePrice, p.extraBots, p.dedicatedNumbers,
+        iso(p.periodEnd), sub.cancel_at_period_end || sub.cancel_at ? 1 : 0, eventCreated]);
+    // Scale is contracted and set by hand (users.plan='scale'); Stripe events never move it.
+    run("UPDATE users SET plan=? WHERE id=? AND plan NOT IN ('scale','business')", [applied, userId]);
   });
-  logEvent(null, "billing_subscription", { userId, subscription: sub.id, status, plan: applied });
+  logEvent(null, "billing_subscription", { userId, subscription: sub.id, status, plan: applied, interval: p.interval });
+  if (p.dedicatedNumbers) logEvent(null, "billing_dedicated_number", { userId, quantity: p.dedicatedNumbers });
   return `${userId} → ${applied} (${status})`;
 }
 
@@ -241,28 +329,65 @@ export function handleStripeEvent(event: any): { handled: boolean; result: strin
   return { handled: result !== "ignored", result };
 }
 
-// ───────── One-time setup (products, prices, portal) ─────────
-export async function setupStripeCatalog(log: (s: string) => void = console.log): Promise<{ prices: Record<string, string>; portalConfiguration: string }> {
-  const prices: Record<string, string> = {};
-  for (const plan of Object.values(PLANS)) {
-    if (!plan.lookupKey || !plan.priceUsd) continue;
-    const found = await stripe<{ data: { id: string }[] }>("GET", "/v1/prices", { lookup_keys: [plan.lookupKey], limit: 1 });
-    if (found.data[0]) { prices[plan.id] = found.data[0].id; log(`price ${plan.lookupKey} exists: ${found.data[0].id}`); continue; }
-    const product = await stripe<{ id: string }>("POST", "/v1/products", {
-      name: `Threadline ${plan.name}`, description: plan.blurb, metadata: { plan: plan.id }, tax_code: "txcd_10103001",
-    }, { idempotencyKey: `product:${plan.id}:v1` });
-    const price = await stripe<{ id: string }>("POST", "/v1/prices", {
-      product: product.id, currency: "usd", unit_amount: Math.round(plan.priceUsd * 100), recurring: { interval: "month" },
-      lookup_key: plan.lookupKey, tax_behavior: "exclusive", metadata: { plan: plan.id },
-    }, { idempotencyKey: `price:${plan.lookupKey}:v1` });
-    prices[plan.id] = price.id;
-    log(`created ${product.id} + price ${price.id} (${plan.lookupKey}, $${plan.priceUsd}/mo)`);
+// ───────── One-time setup: meter, products, prices, portal ─────────
+type PriceSpec = { lookupKey: string; product: string; productKey: string; productDescription: string; unitAmount: number; interval: Interval; metered?: boolean; metadata: Record<string, string> };
+
+export function catalogSpec(): PriceSpec[] {
+  const specs: PriceSpec[] = [];
+  for (const p of Object.values(PLANS)) {
+    if (!p.selfServe || !p.lookupKeys || !p.priceUsd) continue;
+    const product = `Threadline ${p.name}`;
+    specs.push({ lookupKey: p.lookupKeys.month, product, productKey: p.id, productDescription: p.blurb, unitAmount: p.priceUsd * 100, interval: "month", metadata: { plan: p.id, kind: "base" } });
+    if (p.yearlyPerMonthUsd) specs.push({ lookupKey: p.lookupKeys.year, product, productKey: p.id, productDescription: p.blurb, unitAmount: p.yearlyPerMonthUsd * 12 * 100, interval: "year", metadata: { plan: p.id, kind: "base" } });
+    if (p.overageUsd !== null) specs.push({ lookupKey: p.lookupKeys.overage, product: `Threadline ${p.name} extra conversations`, productKey: `${p.id}_overage`,
+      productDescription: `Conversations past the ${p.includedConversations} included each month, $${p.overageUsd.toFixed(2)} each.`,
+      unitAmount: Math.round(p.overageUsd * 100), interval: "month", metered: true, metadata: { plan: p.id, kind: "overage" } });
   }
+  specs.push({ lookupKey: ADDONS.extraBot.lookupKey, product: "Threadline extra bot", productKey: "extra_bot", productDescription: "One more bot on Starter or Growth.", unitAmount: ADDONS.extraBot.priceUsd * 100, interval: "month", metadata: { addon: "extra_bot" } });
+  specs.push({ lookupKey: ADDONS.dedicatedNumber.lookupKey, product: "Threadline dedicated iMessage number", productKey: "dedicated_number", productDescription: "Your own iMessage number customers can text first.", unitAmount: ADDONS.dedicatedNumber.priceUsd * 100, interval: "month", metadata: { addon: "dedicated_number" } });
+  return specs;
+}
+
+export async function setupStripeCatalog(log: (s: string) => void = console.log): Promise<{ meter: string; prices: Record<string, string>; portalConfiguration: string }> {
+  // 1. Meter for overage conversations (sum of payload.value per customer).
+  const meters = await stripe<{ data: { id: string; event_name: string; status?: string }[] }>("GET", "/v1/billing/meters", { limit: 100 });
+  let meter = meters.data.find((m) => m.event_name === meterEventName() && m.status !== "inactive")?.id;
+  if (meter) log(`meter ${meterEventName()} exists: ${meter}`);
+  else {
+    meter = (await stripe<{ id: string }>("POST", "/v1/billing/meters", {
+      display_name: "Threadline overage conversations", event_name: meterEventName(),
+      default_aggregation: { formula: "sum" }, customer_mapping: { type: "by_id", event_payload_key: "stripe_customer_id" },
+      value_settings: { event_payload_key: "value" },
+    }, { idempotencyKey: `meter:${meterEventName()}:v1` })).id;
+    log(`created meter ${meter}`);
+  }
+  // 2. Products + prices, found by lookup_key so re-runs create nothing.
+  const prices: Record<string, string> = {};
+  const products = new Map<string, string>();
+  for (const s of catalogSpec()) {
+    const found = await priceByLookupKey(s.lookupKey);
+    if (found) { prices[s.lookupKey] = found.id; log(`price ${s.lookupKey} exists: ${found.id}`); continue; }
+    let product = products.get(s.productKey);
+    if (!product) {
+      product = (await stripe<{ id: string }>("POST", "/v1/products", {
+        name: s.product, description: s.productDescription, metadata: { threadline: s.productKey }, tax_code: "txcd_10103001",   // SaaS, business use
+      }, { idempotencyKey: `product:${s.productKey}:v1` })).id;
+      products.set(s.productKey, product);
+    }
+    const price = await stripe<{ id: string }>("POST", "/v1/prices", {
+      product, currency: "usd", unit_amount: s.unitAmount, lookup_key: s.lookupKey, tax_behavior: "exclusive", metadata: s.metadata,
+      recurring: s.metered ? { interval: s.interval, usage_type: "metered", meter } : { interval: s.interval },
+    }, { idempotencyKey: `price:${s.lookupKey}:v1` });
+    prices[s.lookupKey] = price.id;
+    log(`created price ${price.id} (${s.lookupKey}, ${(s.unitAmount / 100).toFixed(2)} USD / ${s.metered ? "conversation, billed monthly" : s.interval})`);
+  }
+  // 3. Customer Portal: card, invoices, tax ids, cancel at period end. Plan switches go through changePlan() instead
+  //    (subscriptions carry a metered overage item next to the base price).
   const configs = await stripe<{ data: { id: string; metadata?: Record<string, string> }[] }>("GET", "/v1/billing_portal/configurations", { active: true, limit: 100 });
   let portal = configs.data.find((c) => c.metadata?.threadline === "1")?.id;
   if (portal) log(`portal configuration exists: ${portal}`);
   else {
-    const c = await stripe<{ id: string }>("POST", "/v1/billing_portal/configurations", {
+    portal = (await stripe<{ id: string }>("POST", "/v1/billing_portal/configurations", {
       business_profile: { headline: "Threadline billing" },
       features: {
         invoice_history: { enabled: true },
@@ -271,9 +396,8 @@ export async function setupStripeCatalog(log: (s: string) => void = console.log)
         subscription_cancel: { enabled: true, mode: "at_period_end", cancellation_reason: { enabled: true, options: ["too_expensive", "missing_features", "switched_service", "unused", "other"] } },
       },
       metadata: { threadline: "1" },
-    }, { idempotencyKey: "portal:v1" });
-    portal = c.id;
+    }, { idempotencyKey: "portal:v1" })).id;
     log(`created portal configuration ${portal}`);
   }
-  return { prices, portalConfiguration: portal };
+  return { meter, prices, portalConfiguration: portal };
 }

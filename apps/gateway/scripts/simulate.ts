@@ -337,34 +337,40 @@ await test("web 'text me my bot' rows (line_routes + scheduled greeting, text nu
   expect(calls.length === before + 1 && calls.at(-1)!.botId === A.botId && textsTo(h).length >= 2, textsTo(h).join(" | "));
 });
 
-await test("billing: Pro owner over the monthly allowance → one polite notice a day, core not called; scheduled send refused", async () => {
-  const h = "+15550007001";
-  await say(h, `start ${A.joinCode}`);
-  run("UPDATE users SET plan='pro' WHERE id=?", [userId]);
+await test("billing: Starter owner out of conversations → new customer gets one 'at capacity' notice a day, core not called; open conversation continues; scheduled send refused", async () => {
   const period = new Date().toISOString().slice(0, 7);
-  run("INSERT OR REPLACE INTO message_counters(user_id, period, messages) VALUES (?,?,2000)", [userId, period]);
+  const regular = "+15550007000", fresh = "+15550007001";
+  await say(regular, `start ${A.joinCode}`, "hi, do you do beard trims?");      // opens + counts a conversation (business plan)
+  run("UPDATE users SET plan='starter' WHERE id=?", [userId]);
+  run("INSERT OR REPLACE INTO usage_counters(user_id, period, conversations) VALUES (?,?,300)", [userId, period]);
   try {
-    const before = calls.length, n = textsTo(h).length;
-    await say(h, "do you have slots tomorrow?");
-    expect(calls.length === before, "core.chat must not run over the limit");
-    expect(textsTo(h).length === n + 1 && /monthly message limit/.test(last(h)), `notice expected: ${textsTo(h).slice(n).join(" | ")}`);
-    await say(h, "hello??");
-    expect(textsTo(h).length === n + 1 && calls.length === before, "second message the same day: no second notice");
+    await say(fresh, `start ${A.joinCode}`);
+    const before = calls.length, n = textsTo(fresh).length;
+    await say(fresh, "do you have slots tomorrow?");
+    expect(calls.length === before, "core.chat must not run for a new conversation over the limit");
+    expect(textsTo(fresh).length === n + 1 && /at capacity/.test(last(fresh)), `notice expected: ${textsTo(fresh).slice(n).join(" | ")}`);
+    await say(fresh, "hello??");
+    expect(textsTo(fresh).length === n + 1 && calls.length === before, "second message the same day: no second notice");
+    await say(regular, "and how much is it?");
+    expect(calls.length === before + 1, "a customer already in a conversation keeps getting answers");
     const sid = id("sm_");
-    run("INSERT INTO scheduled_messages(id, bot_id, customer_id, channel, prompt, text, send_at) VALUES (?,?,?,'imessage','x','over quota',datetime('now'))", [sid, A.botId, customerOf(A.botId, h)]);
+    run("INSERT INTO scheduled_messages(id, bot_id, customer_id, channel, prompt, text, send_at) VALUES (?,?,?,'imessage','x','over quota',datetime('now'))", [sid, A.botId, customerOf(A.botId, fresh)]);
     await outbound.tick();
     expect(row(sid).status === "failed" && /billing/.test(row(sid).error ?? ""), JSON.stringify(row(sid)));
   } finally {
-    run("DELETE FROM message_counters WHERE user_id=?", [userId]);
+    run("DELETE FROM usage_counters WHERE user_id=?", [userId]);
     run("UPDATE users SET plan='business' WHERE id=?", [userId]);
   }
   const before = calls.length;
-  await say(h, "ok now?");
+  await say(fresh, "ok now?");
   expect(calls.length === before + 1, "back under the limit → answered");
-  expect((get<{ messages: number }>("SELECT messages FROM message_counters WHERE user_id=? AND period=?", [userId, period])?.messages ?? 0) === 1, "answered message counted");
+  const used = get<{ conversations: number }>("SELECT conversations FROM usage_counters WHERE user_id=? AND period=?", [userId, period])?.conversations ?? 0;
+  expect(used === 1, `the answered new conversation is counted once (got ${used})`);
+  await say(fresh, "thanks!");
+  expect((get<{ conversations: number }>("SELECT conversations FROM usage_counters WHERE user_id=? AND period=?", [userId, period])?.conversations ?? 0) === 1, "a follow-up in the same conversation is not counted again");
 });
 
-await test("billing: Free owner's bot on iMessage → not answered (iMessage needs Pro), notice sent", async () => {
+await test("billing: Free owner's bot on iMessage → only the first 5 phones are answered; a new customer gets a notice", async () => {
   const h = "+15550007002";
   await say(h, `start ${A.joinCode}`);
   run("UPDATE users SET plan='free' WHERE id=?", [userId]);
@@ -373,6 +379,8 @@ await test("billing: Free owner's bot on iMessage → not answered (iMessage nee
     await say(h, "price of a fade?");
     expect(calls.length === before, "core.chat must not run");
     expect(/isn't available on this app/.test(last(h)), last(h));
+    await say("+1001", `start ${A.joinCode}`, "still there?");                   // one of the bot's first iMessage contacts = test phone
+    expect(calls.length === before + 1, "test phone answered on Free");
   } finally { run("UPDATE users SET plan='business' WHERE id=?", [userId]); }
 });
 
