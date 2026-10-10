@@ -8,7 +8,7 @@ Owns: launch/gtm/**
 - [x] launch/gtm/INBOUND.md: 25-query SEO map with current top results, programmatic templates, 12-week calendar (posts 7-15 handed to blog in COORDINATION.md), launch plan (Show HN Nov 4, PH Sat Dec 5, IH, r/ShopifyApps), directories with prices, Shopify App Store plan, free tools, referral loop
 - [x] launch/gtm/OUTBOUND.md: lead sources + costs, qualification score, 3 email + 2 DM sequences (drafts), demo-first motion, funnel with numbers, tooling ~$641/mo, domain warmup + ramp
 - [x] launch/gtm/PLAN-90D.md: 13-week plan (Oct 12 to Jan 9), funnel targets (33 paid, ~$2k MRR), weekly metrics, budget ~$4.1k, kill rules
-- [x] launch/gtm/sample-leads.csv: 30 US Shopify brands, each verified by fetching (cdn.shopify.com + Gorgias/Postscript/Attentive script); I re-checked 15 independently
+- [x] launch/gtm/sample-leads.csv: 30 US Shopify brands, each verified by fetching (cdn.shopify.com + Gorgias/Postscript/Attentive script); I re-checked 13 of the final rows independently with curl
 
 ## Key decisions
 - Pricing replaces the deck's "$0.50/conv, $99 min": matches Flow at $29, sits far under helpdesk AI per conversation. Billing had already started a single $29 "Pro" plan; the full plan set is in COORDINATION.md.
