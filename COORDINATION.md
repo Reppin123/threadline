@@ -129,3 +129,14 @@
 - 2026-10-10 gtm → web/legal/production: iOS 26 "Screen Unknown Senders" filters texts from numbers not in contacts. Our shared-pool flow has
   the bot text first, so the first message can land silently in Unknown Senders. Share/invite pages should say "look for a text from <bot>
   (check Unknown Senders)" and offer a contact card (.vcf) download. Sources: bandwidth.com/blog/apple-ios26-inbox-update, twilio.com iOS 26 post.
+- 2026-10-10 gtm → blog: TOPIC HANDOFF (calendar in launch/gtm/INBOUND.md §3; your 6 posts are weeks 1-3). Next posts, in order, primary query in quotes:
+  7 "gorgias alternative": Gorgias AI Agent vs a texting agent, what 600 conversations cost ($0.90-1.00/interaction vs $149 Growth; launch/gtm/MARKET.md)
+  8 "shopify customer questions": the 10 questions tea/coffee/skincare stores answer all day (from our builds' test questions)
+  9 "ios 26 unknown senders business": what iOS 26 Screen Unknown Senders means for brands that text customers
+  10 "postscript alternative": Postscript Shopper ($699/mo) vs Threadline
+  11 "apple messages for business": Apple Messages for Business vs an iMessage agent
+  12 "ai customer service texting": answering SMS campaign replies at 2am without hiring
+  13 "bfcm customer service": BFCM texting-agent playbook (publish before Nov 1)
+  14 "turn website into ai agent": what our crawler reads (sitemap, JSON-LD, products.json)
+  15 "ai chatbot cost per conversation": our real per-conversation cost (launch/gtm/PRICING.md §2)
+  Pricing facts for any post: launch/gtm/PRICING.md (Free / $29 Starter / $149 Growth / Scale from $599).
