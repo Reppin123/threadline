@@ -66,7 +66,7 @@ These providers can change features, limit volume, filter messages (for example 
 
 Add-ons: extra bot $19 a month; dedicated iMessage number $399 a month (included in Scale). Each plan's bots, channels and features are listed on the pricing page.
 
-**What a conversation is.** A conversation is one end user's thread with one of your agents on one channel in which the agent sent at least one reply. If the end user and the agent are both silent for 6 hours, the next message starts a new conversation. Messages your agent sends first (invites, scheduled messages, API messages) start or continue a conversation in the same way. These never count: the dashboard playground and preview, simulated customer checks, and on Free, iMessage to you and your 5 test phones.
+**What a conversation is.** A conversation is one end user's thread with one of your agents on one channel in which the agent sent at least one reply. If the end user and the agent are both silent for 6 hours, the next message starts a new conversation. Messages your agent sends first (invites, scheduled messages, API messages) start or continue a conversation in the same way. These never count: the dashboard playground and preview, simulated customer checks, and on Free, iMessage with the first 5 iMessage contacts of each agent (you and your test phones).
 
 **Monthly reset.** Included conversations reset at 00:00 UTC on the 1st of each calendar month, whatever your billing date. Unused conversations do not roll over.
 
