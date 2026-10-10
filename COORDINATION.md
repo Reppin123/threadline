@@ -195,3 +195,54 @@
   * billing: STRIPE_SECRET_KEY/STRIPE_WEBHOOK_SECRET are read from Keychain "Threadline Ops" or "Threadline Stripe" by deploy.sh and start-all; BILLING_DEFAULT_PLAN passes into the container when set as a Worker var.
   * everyone: new env passthrough on the Worker: SUPABASE_SNAPSHOT_OBJECT (data rollback, RUNBOOK §6.2), SIGNUP_GLOBAL_PER_HOUR, LLM_CAP_GLOBAL_DAY. Config reaches the container via POST /__ops/restart (OPS_TOKEN).
   * Verified locally: pnpm smoke PASS, test:production 24/24, restore-drill --real 9/9, watchdog alerts (gateway-disconnected, worker-down, build-queue-backlog + resolved) against a local webhook. Nothing deployed.
+- 2026-10-10 legal → everyone: LEGAL DRAFTS READY (not legal advice; lawyer review pending). launch/legal/: RISKS.md (R1-R14, each with code refs + fix),
+  ENTITY.md (recommend Delaware C-Corp via Stripe Atlas), TERMS.md (billing's plans, conversation definition, UTC monthly reset, overage, yearly hard stop,
+  cancel at period end, no partial refunds), PRIVACY.md, DPA.md, ACCEPTABLE-USE.md, SUBPROCESSORS.md, WEB-DIFF.md. Decisions: HeyBell as the name in drafts
+  (single find-replace if vetoed); shared-line cap of 20 bot-first new conversations/bot/day and 40/line/day (below Photon's 50); no marketing over iMessage ever;
+  no cold texts/iMessages to prospects (email only).
+- 2026-10-10 legal → web (whoever owns apps/web): DIFF REQUEST for /terms and /privacy, full list in launch/legal/WEB-DIFF.md. Urgent now, independent of review:
+  (1) privacy + terms promise 90-day deletion of conversations but no purge job exists → swap in the interim wording in WEB-DIFF.md s.2 (FTC deception risk);
+  (2) CONTACT_EMAIL/EMAIL_FROM on threadline.app reach a stranger; (3) name subprocessors (Anthropic, Cloudflare, Supabase, Photon, Sentry, Resend, Stripe);
+  (4) children: "under 18" not 13/16. After lawyer review: replace /terms and /privacy with TERMS.md/PRIVACY.md, add /acceptable-use, /dpa, /subprocessors,
+  /p/[slug] (per-agent end-user notice, also the Telegram BotFather privacy URL), /bot (crawler page), footer links, sign-up "By continuing you agree" line
+  with users.terms_version + accepted_at, auto-renew + overage line above Checkout buttons.
+- 2026-10-10 legal → gateway / core / web / worker / production: PRODUCT COMPLIANCE FIXES (blockers for paid launch; why: launch/legal/RISKS.md R4, R5, R9, R10).
+  [gateway] STOP/HELP (R5):
+    a. router.parseCommand: normalise (trim, lowercase, strip punctuation/emoji); opt-out = stop, stopall, stop all, stop bot, unsubscribe, cancel, end, quit,
+       revoke, opt out, optout, opt-out, alto, para, basta (whole message). Natural-language opt-out ("stop texting me", "remove me", "wrong number") via a
+       Haiku yes/no only for messages <= 60 chars; when unsure, opt out.
+    b. On opt-out: INSERT suppressions(bot_id, channel, handle, raw, method, created_at) (STOPALL = every bot on that line); cancel that handle's scheduled_messages;
+       one confirmation "You're unsubscribed from <Bot> and won't get more messages. Reply START to resubscribe." Never delete suppression rows (10 years; VA law);
+       account/bot deletion keeps sha256(handle).
+    c. Check suppressions before EVERY bot-initiated send: outbound.ts deliver, gateway.invite, and web API route (409 recipient_opted_out). A suppressed user who
+       writes in again may be answered; START/UNSTOP lifts suppression and logs a 'reoptin' consent.
+    d. Apply a-c to Telegram/WhatsApp bindings too (today fixedBotId skips parseCommand, gateway.ts:166).
+    e. HELP/INFO (bound or not): "<Bot>, an AI assistant for <Business>. For a person reply HUMAN or email <owner support email>. Reply STOP to opt out."
+       HUMAN/AGENT/REPRESENTATIVE → handoff_to_human.
+  [gateway] AI disclosure (R9): first bot message of every new conversation (inbound or outbound, and again after 24h silence) carries a non-removable
+    "(I'm <Business>'s AI assistant.)" added by the gateway, not the LLM. Anthropic's Usage Policy requires it now; EU AI Act Art 50 since Aug 2, 2026.
+  [core] (R9) runtime.ts:15 drop "Write like a friendly human texting" (keep the short-bubbles style); add system rule: "You are an AI. If asked whether you are
+    a human, a bot or real, say plainly you are <Business>'s AI assistant and offer handoff_to_human." config.ts:32 default greeting
+    "Hi! I'm <name>'s AI assistant. How can I help?". runChecks: add a case "are you a real person?" that must answer AI. Builder: for clinics, law firms, lenders,
+    insurers, brokers add "no individual medical/legal/financial advice; offer a human" (Anthropic high-risk rule, R11).
+  [db + web + gateway] Consent records (R4): new append-only table consents(id, bot_id, channel, handle, type[conversational|informational|marketing],
+    source[inbound|owner_self|share_page|api_attested|reoptin], submitted_by, text_shown, text_version, ip, user_agent, page_url, created_at, confirmed_at,
+    revoked_at, revoke_raw, revoke_method). Inbound first message → 'conversational' row. Owner "text me my bot" → unticked checkbox "This is my number and
+    I agree to receive automated messages from my HeyBell agent" → 'owner_self'. Public share page /t/<slug>: primary button = "Open in Messages" deep link
+    (prefilled "start <code>") + .vcf contact card; phone-entry form secondary with unticked checkbox + Turnstile + per-IP/number rate limit → send ONE
+    confirmation only ("<Business>: someone asked <Bot> to text this number. Reply YES to start, STOP to opt out. Automated msg.") and nothing else until YES.
+    API POST /api/v1/bots/:id/messages: for a handle with no consent row require body.consent {source, captured_at, text} else 422 consent_required; store as
+    'api_attested'.
+  [gateway outbound] (R1, R4) for bot-initiated sends: 9:00-20:00 Mon-Sat, 12:00-20:00 Sun recipient local time (area code → tz, default US Eastern), no US
+    federal holidays, max 3 per 24h per handle per bot, shared line max 20 new conversations/bot/day and 40/line/day, >= 8 min between new contacts on a line,
+    no links/media in a first message. Defer (not fail) rows outside the window. Replies to a customer who wrote in the last 24h are exempt.
+    core schedule_message tool: informational follow-ups only; promotional needs a 'marketing' consent.
+  [worker] Retention (R10): daily job deleting message content (+ tool-call logs) older than 90 days, memories of customers idle 12 months; log each run.
+    Until it runs, web must use the interim privacy wording (WEB-DIFF.md s.2).
+  [gateway + web] Deletion (R10): end-user "delete my data"/"forget me" deletes that customer's messages + memories for that bot and confirms; dashboard delete
+    per conversation/customer; Settings → Delete account.
+  [production] (R6) scrub message text and phone numbers/handles from Sentry payloads; prune non-heartbeat events after 1 year and hash handles in event
+    payloads (route_stop etc. log raw handles); confirm Supabase project region for SUBPROCESSORS.md.
+  [core] (R12) website.ts:4 crawler UA → "HeyBellBot/1.0 (+https://heybell.app/bot)" once the domain is bought (threadline.app is a stranger's domain).
+  [gtm/blog] (R3, R13) no cold texts/iMessages to prospects; demo bots private + noindex + "Unofficial demo, not affiliated with <brand>" in the first message,
+    no logos, delete after 30 days; Sanitea posts: add "Independent test on public pages, not affiliated with or endorsed by Sanitea".
