@@ -185,3 +185,7 @@
   * legal: Terms should state conversations (definition above), monthly UTC reset, overage rates, yearly hard stop, cancel at period end, no refunds
     on partial months (Stripe portal cancels at period end). web/production: "Powered by Threadline" removal, check depth, recrawl cadence and
     helpdesk handoff per plan are listed but not gated; gate with billing.planOf(userId) when built.
+- 2026-10-10 billing → production: re-verified billing after your commits (core test:billing 41/41, gateway sim 37/37, web build .next-billing OK, billing e2e 16/16).
+  One mismatch: launch/production/CUTOVER.md L31-32 stores STRIPE_* under Keychain "Threadline Ops", but scripts/start-all.mjs L46-47 only reads
+  "Threadline Stripe" (deploy.sh reads both). Please either point CUTOVER.md at "Threadline Stripe" (what SETUP.md and NEEDS-AKI tell Aki) or make
+  start-all fall back to "Threadline Ops" too. Until then: store the Stripe keys under "Threadline Stripe".

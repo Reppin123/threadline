@@ -17,13 +17,16 @@ Same pattern as the other secrets in COORDINATION.md:
 security add-generic-password -s "Threadline Stripe" -a STRIPE_SECRET_KEY -w          # paste sk_test_... at the prompt
 security add-generic-password -s "Threadline Stripe" -a STRIPE_WEBHOOK_SECRET -w      # after step 4
 ```
+
+Use the service name "Threadline Stripe" (not "Threadline Ops"): `scripts/start-all.mjs` only reads this one; `deploy/cloudflare/deploy.sh` reads either.
+
 For a local run, export them into the shell that starts the app:
 ```sh
 export STRIPE_SECRET_KEY="$(security find-generic-password -s 'Threadline Stripe' -a STRIPE_SECRET_KEY -w)"
 export STRIPE_WEBHOOK_SECRET="$(security find-generic-password -s 'Threadline Stripe' -a STRIPE_WEBHOOK_SECRET -w)"
 ```
-Production agent: `scripts/start-all.mjs` and `deploy/cloudflare/deploy.sh` + `src/index.ts` (container `envVars`) need these two
-added the same way as `ANTHROPIC_API_KEY` (noted in COORDINATION.md; billing does not edit deploy/**).
+Already wired by production: `scripts/start-all.mjs` loads both from Keychain, `deploy/cloudflare/deploy.sh` pushes them as Worker secrets,
+and `deploy/cloudflare/src/index.ts` passes them (plus `BILLING_DEFAULT_PLAN`) into the container env.
 
 ## 3. Create products, prices, the meter and the portal (one command, safe to re-run)
 ```sh

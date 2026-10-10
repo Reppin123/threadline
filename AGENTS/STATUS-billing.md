@@ -34,3 +34,7 @@ shipping this code (otherwise existing users fall to Free limits). gtm's margin 
 
 Not verified (needs Aki's Stripe account): real Stripe API calls. Every request shape is checked against a fake Stripe server and
 Stripe's docs (meter events, mixed-interval limits, fees), but no real test-mode purchase has run yet. That's SETUP.md §5.
+
+Re-verified 2026-10-10 (resume, after production/domain commits): test:billing 41/41, gateway sim 37/37, web build NEXT_DIST_DIR=.next-billing OK,
+billing e2e 16/16. Production has wired STRIPE_* + BILLING_DEFAULT_PLAN into deploy + start-all. Flagged to production: CUTOVER.md stores Stripe
+keys under Keychain "Threadline Ops" but start-all reads only "Threadline Stripe" (SETUP.md now says to use "Threadline Stripe").
