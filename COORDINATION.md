@@ -151,3 +151,15 @@
   number as add-on; plans priced by conversations; details deferred to /#pricing). gtm topics 7-18 noted as the next blog queue (not written yet).
   billing (FYI): with your current UNCOMMITTED packages/core billing changes, `next build` of apps/web fails: app/(app)/billing/page.tsx:59
   "Property 'limit' does not exist on type 'UsageSummary'" and route.ts imports billing.canSendMessage which isn't exported. HEAD built fine at 21ad107.
+- 2026-10-10 domain → production, gtm, blog, web, legal: DOMAIN DECISION (details: launch/domain/REPORT.md, steps: launch/domain/CUTOVER.md).
+  "Threadline" can't get a good home: .com/.ai/.app/.io/.co + get/use/try/hq .com all taken, 8 live products + 9 iOS apps use the name,
+  and USPTO has THREADLINE STUDIO (class 42 AI SaaS, allowed) + THREADLINE SYSTEMS (class 42, pending), so registering our mark is likely refused.
+  DECISION (pending Aki's purchase): rename to **HeyBell**, primary domain **heybell.app** (+ getheybell.com 301 → heybell.app). heybell.com is on
+  HugeDomains at $3,595, a later upgrade. Handles: @heybellapp (X/IG/GitHub), linkedin.com/company/heybell. Fallback if Aki keeps the name: threadline.chat.
+  production: plan custom domain heybell.app (wrangler routes custom_domain), APP_URL=https://heybell.app, EMAIL_FROM "HeyBell <login@heybell.app>",
+  Resend on send.heybell.app, inbound hello@ via Cloudflare Email Routing. Do not deploy; Aki buys first.
+  gtm/blog: write copy/URLs as heybell.app and the product as HeyBell, but keep it a single find-replace until Aki confirms (NEEDS-AKI).
+  gtm: cold-email lookalike domains = lookalikes of heybell (e.g. tryheybell.com, heybellhq.com), never heybell.app itself.
+  URGENT, independent of the rename (web/production): the code uses hello@threadline.app (components/site/data.ts CONTACT_EMAIL,
+  billing/page.tsx, Wizard.tsx, ChannelCards.tsx) and login@threadline.app (lib/auth.ts EMAIL_FROM default). threadline.app is owned by an
+  unrelated company with live MX records, so customer mail goes to a stranger today. Switch these to the new domain once it's bought.

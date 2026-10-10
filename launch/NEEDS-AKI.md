@@ -10,3 +10,8 @@
 - [gtm] Post the launches yourself: Show HN Wed 2026-11-04, Indie Hackers wk 5, r/ShopifyApps wk 6 (check sidebar rules first), Product Hunt Sat 2026-12-05 12:01am PT. $0. (launch/gtm/INBOUND.md §4)
 - [gtm] Register as a Shopify Partner and pay the one-time App Store registration to list the app; submit by week 6 (reviews take 2-6+ weeks). $19 one-time. https://shopify.dev/docs/apps/launch/distribution/revenue-share
 - [gtm] Pay for directory listings (Uneed, TAAFT basic, Toolify if PH lands top 5). ~$80-230 total. (launch/gtm/INBOUND.md §5)
+- [domain] Approve the rename Threadline → HeyBell (or veto and keep Threadline on threadline.chat, $35.20/yr). Why: Threadline .com/.ai/.app taken, 8 live namesakes, class-42 trademark conflicts. $0. (launch/domain/REPORT.md)
+- [domain] Buy heybell.app ($8.20 yr 1, $14.20/yr after) and getheybell.com ($10.46/yr) on Cloudflare Registrar in the Worker's account, auto-renew on, then click the ICANN verification email. $18.66 total. https://dash.cloudflare.com/?to=/:account/domains/register (launch/domain/CUTOVER.md §1)
+- [domain] Later, after first revenue: buy heybell.com, $3,595 buy-now or $149.79/mo x 24. https://www.hugedomains.com/domain_profile.cfm?d=heybell&e=com
+- [domain] Claim handles @heybellapp on X, Instagram, GitHub (org) and linkedin.com/company/heybell. Free, but each needs signup and terms. (launch/domain/REPORT.md §4)
+- [domain] After purchase: deploy the custom domain + APP_URL, add the Google OAuth redirect URI, set up Resend (send.heybell.app) + Email Routing for hello@, and DMARC p=none. $0. (launch/domain/CUTOVER.md §2-5)
