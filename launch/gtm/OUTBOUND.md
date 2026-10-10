@@ -93,8 +93,8 @@ one link. Every email ends with the sender's postal address and "Reply 'no' and 
 > Threadline
 
 **Email 2, day 3.** Subject: `re: {store} on iMessage`
-> One more test I ran: a shopper typing half in shorthand who changes their mind mid-order. It saved the order to a table you
-> can export and asked for the shipping zip before confirming. Took 4 seconds.
+> One more test I ran on {store}'s bot: {second_test}. {second_result}, in {latency} seconds.
+> (Filled from the prospect bot's own check run, e.g. a shopper typing in shorthand who changes their mind mid-order.)
 >
 > Your Gorgias inbox would only see the conversations it hands off. Worth a 2-minute look? {link}
 
