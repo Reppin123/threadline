@@ -3,6 +3,7 @@ import { requireUser, appUrl } from "@/lib/auth";
 import { listBotsBasic, trialOf } from "@/lib/data";
 import { all } from "@/lib/db";
 import { TopBar } from "@/components/app/TopBar";
+import { BillingBanner } from "./billing/Banner";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="app">
       <a className="skip" href="#main">Skip to content</a>
       <TopBar user={{ name: user.name, email: user.email, plan: user.plan }} bots={bots} trial={trial} apiKeys={apiKeys as any} appUrl={appUrl()} />
+      <BillingBanner userId={user.id} />
       {children}
     </div>
   );

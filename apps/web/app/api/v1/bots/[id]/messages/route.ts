@@ -2,6 +2,7 @@
 // The gateway's outbound worker delivers it at send_at (default: now).
 import { get, id as newId, run, logEvent } from "@/lib/db";
 import { apiError, authorize } from "@/lib/api";
+import { billing } from "@/lib/billing";
 
 export const runtime = "nodejs";
 const CHANNELS = ["imessage", "telegram", "whatsapp", "web", "terminal"];
@@ -20,6 +21,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (prompt.length > 4000) return apiError(422, "invalid_prompt", "'prompt' is over 4000 characters.");
   const channel = m[1]!.toLowerCase();
   const handle = m[2]!.trim();
+  // billing: plan must include the channel and have allowance left (the gateway counts the message when it sends).
+  const owner = billing.ownerOf(botId);
+  if (owner) {
+    const ch = billing.canUseChannel(owner, channel);
+    if (!ch.ok) return apiError(403, "plan_channel", ch.message);
+    const q = billing.canSendMessage(owner);
+    if (!q.ok) return apiError(402, "quota_exceeded", q.message);
+  }
   let sendAt = new Date();
   if (body.send_at != null) {
     const t = new Date(body.send_at);

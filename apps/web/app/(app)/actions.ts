@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/auth";
 import { getBot } from "@/lib/data";
 import { deriveSource, type Missing } from "@/lib/wizard";
 import { startBuild, startChecks } from "@/lib/jobs";
+import { billing } from "@/lib/billing";
 
 function errMsg(e: unknown) {
   return String((e as Error)?.message ?? e).slice(0, 300);
@@ -34,6 +35,8 @@ export async function wizardCreate(answers: WizardAnswer[]): Promise<{ error: st
   const user = await requireUser();
   const d = deriveSource(answers);
   if ("missing" in d) return { error: d.missing.question };
+  const allowed = billing.canCreateBot(user.id);
+  if (!allowed.ok) return { error: allowed.message };
   let botId: string;
   try {
     ({ botId } = await core.createBot(user.id, d.source, answers));
@@ -124,9 +127,11 @@ export async function deleteBot(botId: string) {
 }
 
 // ── Deploy ───────────────────────────────────────────────────────────────
-export async function connectChannel(botId: string, channel: "imessage" | "telegram", config?: Record<string, string>) {
+export async function connectChannel(botId: string, channel: "imessage" | "telegram", config?: Record<string, string>): Promise<{ error: string } | void> {
   const user = await requireUser();
   getBot(user.id, botId);
+  const allowed = billing.canUseChannel(user.id, channel);
+  if (!allowed.ok) return { error: allowed.message };
   const handle = channel === "imessage" ? process.env.IMESSAGE_LINE_HANDLE || null : null;
   run(
     `INSERT INTO channels(bot_id,channel,status,line_handle,config_json,updated_at) VALUES (?,?,?,?,?,datetime('now'))

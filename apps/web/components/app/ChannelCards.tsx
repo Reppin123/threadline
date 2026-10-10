@@ -9,7 +9,12 @@ export function ChannelCards(p: { botId: string; joinCode: string; handle: strin
   const router = useRouter();
   const [pending, start] = useTransition();
   const [copied, setCopied] = useState(false);
-  const act = (fn: () => Promise<unknown>) => start(async () => { await fn(); router.refresh(); });
+  const [err, setErr] = useState<string | null>(null);
+  const act = (fn: () => Promise<unknown>) => start(async () => {
+    const r = await fn();
+    setErr(r && typeof r === "object" && "error" in r ? String((r as { error: string }).error) : null);
+    router.refresh();
+  });
   return (
     <>
       <div className="ch-grid">
@@ -25,6 +30,7 @@ export function ChannelCards(p: { botId: string; joinCode: string; handle: strin
           ) : (
             <button className="btn btn-blue" disabled={pending} onClick={() => act(() => connectChannel(p.botId, "imessage"))} id="connect-imessage">Connect iMessage</button>
           )}
+          {err && <div className="note-box" style={{ marginTop: 10 }} id="imessage-plan-error">{err} <a href="/billing">Billing</a></div>}
         </div>
         <TelegramCard botId={p.botId} tg={p.tg} />
         <div className="card ch-card">

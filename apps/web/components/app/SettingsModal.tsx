@@ -91,8 +91,8 @@ export function SettingsModal(props: SettingsData & { currentBotId: string | nul
               {props.trial.daysLeft !== null ? `. At this rate it lasts about ${props.trial.daysLeft} more days.` : "."}
             </p>
             <div className="toolbar" style={{ marginBottom: 0 }}>
-              <span className="muted" style={{ fontSize: 13.5 }}>Need a dedicated iMessage line, isolated servers, or higher limits?</span>
-              <a className="btn btn-sm" href="mailto:hello@threadline.app?subject=Paid%20pilot">Ask about a paid pilot</a>
+              <span className="muted" style={{ fontSize: 13.5 }}>Plan, monthly messages and invoices live on the Billing page.</span>
+              <a className="btn btn-sm" href="/billing" id="settings-billing-link">Billing</a>
             </div>
           </section>
 

@@ -1,0 +1,26 @@
+.billing .bl-msg { margin-bottom: 14px; }
+.bl-current { padding: 22px; margin-bottom: 28px; }
+.bl-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.bl-plan { font-size: 26px; font-weight: 650; display: flex; align-items: center; gap: 10px; margin-top: 2px; }
+.bl-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.bl-small { font-size: 13px; margin-top: 6px; }
+.bl-usage { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--line); }
+.bl-usage-head { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+.bl-bar { height: 8px; border-radius: 9px; background: var(--paper-2); overflow: hidden; }
+.bl-bar i { display: block; height: 100%; background: var(--blue); border-radius: 9px; }
+.bl-bar.near i { background: var(--amber); }
+.bl-bar.over i { background: var(--red); }
+.bl-facts { display: flex; gap: 40px; margin-top: 16px; }
+.bl-ch { font-size: 15px; }
+.bl-plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 12px; }
+.bl-card { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.bl-card.current { border-color: var(--blue); }
+.bl-card-head { display: flex; justify-content: space-between; align-items: center; }
+.bl-card h3 { font-size: 17px; }
+.bl-price { font-size: 28px; font-weight: 650; }
+.bl-price small { font-size: 14px; font-weight: 400; color: var(--muted); }
+.bl-card ul { margin: 0; padding-left: 18px; font-size: 14px; color: var(--ink-2); display: grid; gap: 4px; flex: 1; }
+.bl-banner { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 9px 16px; font-size: 14px; flex-wrap: wrap; text-align: center; }
+.bl-banner.warn { background: var(--amber-soft); color: #6b4600; }
+.bl-banner.err { background: var(--red-soft); color: var(--red); }
+.bl-banner a { font-weight: 600; color: inherit; text-decoration: underline; }
