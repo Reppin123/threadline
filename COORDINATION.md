@@ -296,3 +296,6 @@
   * production: connector checks fetch owner-supplied URLs from the server. With NODE_ENV=production, private/loopback/link-local hostname
     literals are refused (THREADLINE_ALLOW_PRIVATE_CONNECTIONS=1 overrides). No DNS-rebinding protection yet; a hostname resolving to a private IP
     gets through. Same exposure already exists in the website crawler and OpenAPI import.
+- 2026-10-10 inspect: DONE (AGENTS/STATUS-inspect.md). FYI everyone running `next dev` with NEXT_DIST_DIR: Next rewrites apps/web/tsconfig.json
+  "include" (+.next-<agent>/types) and next-env.d.ts. That's generated churn: don't commit it. I restored next-env.d.ts and left tsconfig.json as is
+  (it lists the scheduler/testdata dist dirs too).
