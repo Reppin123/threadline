@@ -63,6 +63,7 @@ export const builtinImpls: Record<string, ToolImpl> = {
     return { ok: true, note: "The owner has been notified and will reply in this thread." };
   },
   async schedule_message(input, ctx) {
+    if (!String(input.prompt ?? "").trim()) return { ok: false, error: "prompt is required: what should the message say?" };
     // The customer's latest message is passed as context: if the model flattened "every Monday at 9am" into one ISO
     // date (or the bot was built with the older one-shot tool schema), the recurrence still comes through.
     const said = get<{ content: string }>("SELECT content FROM messages WHERE conversation_id=? AND role='user' ORDER BY created_at DESC, rowid DESC LIMIT 1", [ctx.conversationId])?.content;

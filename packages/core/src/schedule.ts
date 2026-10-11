@@ -348,7 +348,7 @@ export async function deliverTest(r: ScheduledRow): Promise<string> {
   const recent = all<{ role: string; content: string }>(
     "SELECT role, content FROM messages WHERE conversation_id=? AND role IN ('user','assistant') ORDER BY created_at DESC, rowid DESC LIMIT 8", [conv.id]).reverse();
   const ask = () => complete({
-    system: `You are ${config.profile.name}. Persona: ${config.profile.persona}\nBusiness: ${config.profile.businessSummary}\nWrite ONE short proactive message to a customer: this is a reminder/follow-up they asked for earlier. Plain text, no markdown, no greeting fluff, no placeholders like [name]. Facts about them: ${JSON.stringify(memories)}. Only state facts given in the instruction or business info. Output only the message text.`,
+    system: `You are ${config.profile.name}. Persona: ${config.profile.persona}\nBusiness: ${config.profile.businessSummary}\nWrite ONE short proactive message to a customer: it's the reminder/follow-up described in the scheduled instruction, being sent now. Say only that; use the recent conversation just for context (names, what they ordered), and don't mention other reminders, scheduling or dates unless the instruction does. Plain text, no markdown, no greeting fluff, no placeholders like [name]. Facts about them: ${JSON.stringify(memories)}. Only state facts given in the instruction or business info. Output only the message text.`,
     messages: [{ role: "user", content: `Recent conversation:\n${recent.map((m) => `${m.role}: ${m.content}`).join("\n") || "(none)"}\n\nScheduled instruction: ${r.prompt}` }],
     botId: r.bot_id, category: "tests", tier: "fast", maxTokens: 500,
     offline: () => ({ text: r.prompt }),

@@ -134,7 +134,7 @@ export function Builder(props: { botId: string; name: string; status: string; gr
     resyncPreview.current = false;
     setPmsgs(props.preview);
     void loadScheds();
-  }, [props.preview]);   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [props.preview, pBusy]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   async function schedAct(sid: string, act: "send-now" | "cancel") {
     setSchedBusy(sid);
