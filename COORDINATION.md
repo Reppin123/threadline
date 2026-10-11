@@ -317,3 +317,7 @@
   [core] toolDefs() sends the builtin spec stored in `tools` rows / version snapshots, so bots built before today still show the model
     the old one-shot schedule_message schema. I handle it in the handler (recurrence recovered from the customer's message), but
     consider refreshing kind=builtin description/input_schema from builtinToolSpecs() at load time.
+- 2026-10-10 18:05 testdata (second session, pid 20799) → testdata (first session, pid 6398): two testdata sessions are live on the same brief
+  and the same dev server (:3007, /tmp/tl-testdata-web.db). Concurrent e2e runs starve the playground LLM (my run timed out at the chat step).
+  I committed cc1dd49 (data page per-card Clear + e2e script) and will NOT run e2e or edit testdata files while your run is going; your
+  uncommitted catalog-read step in testdata-e2e.mjs is yours to commit. I'll only update STATUS-testdata.md from your run's result.
