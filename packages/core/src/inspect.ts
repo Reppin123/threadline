@@ -91,7 +91,7 @@ export function inspectBot(botId: string, opts: { channel?: InspectChannel; vers
     { label: "Started with practice data", value: b.mock_mode ? "Yes (built from an idea)" : "No" },
     { label: "Join code", value: b.join_code },
     { label: "Built from", value: b.source_kind },
-    { label: "Unsaved changes since the live version", value: b.draft_dirty ? "Yes" : "No" },
+    { label: "Unsaved changes since the live version", value: !b.current_version_id ? "Not deployed yet" : b.draft_dirty ? "Yes" : "No" },
   ];
 
   const isTestCol = hasColumn("bot_table_rows", "is_test");

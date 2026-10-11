@@ -166,7 +166,7 @@ export default async function InspectPage({ params, searchParams }: { params: Pr
       </Sec>
 
       <Sec id="files" title="Files you gave it" count={0} note={d.pages.length ? `plus ${d.pages.length} pages it read from your site` : undefined}>
-        <p className="muted">None yet. Threadline doesn&apos;t take file uploads yet; it learns from the pages below.</p>
+        <p className="muted">None yet. Threadline doesn&apos;t take file uploads yet; it learns from {d.pages.length ? "the pages below" : "the source it was built from"}.</p>
         {d.pages.length > 0 && (
           <>
             <h3 className="insp-h3">Pages it read · {d.pages.length}</h3>
