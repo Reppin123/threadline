@@ -8,7 +8,7 @@ import { BuilderMark } from "./BuilderMark";
 import { initials } from "./TopBar";
 
 export type BMsg = { id: string; role: "user" | "assistant"; content: string };
-export type PMsg = { id: string; kind: "me" | "them" | "tool" | "note"; text: string; pending?: boolean };
+export type PMsg = { id: string; kind: "me" | "them" | "tool" | "note"; text: string; pending?: boolean; sched?: string };
 type Skin = "imessage" | "telegram" | "whatsapp";
 
 function Composer(props: { id: string; placeholder: string; busy: boolean; onSend: (t: string) => void; onFile?: (f: File) => void; hint?: boolean; extra?: React.ReactNode }) {
@@ -38,6 +38,50 @@ function Composer(props: { id: string; placeholder: string; busy: boolean; onSen
   );
 }
 
+// ── Scheduled-message test chip (agent "scheduler"): "⏰ Test: on <next run> · next <following>" + Send now / ×.
+type Sched = {
+  id: string; status: string; repeat: string | null; timezone: string; next_run_at: string | null; following_run_at: string | null;
+  last_run_at: string | null; last_status: string | null; last_note: string | null; run_count: number; skip_count: number; describe: string; messageId?: string | null;
+};
+function fmtWhen(iso: string, tz: string) {
+  const d = new Date(iso);
+  try {
+    const p = new Intl.DateTimeFormat("en-GB", { timeZone: tz, weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" }).formatToParts(d);
+    const v = (t: string) => p.find((x) => x.type === t)?.value ?? "";
+    return `${v("weekday")} ${v("day")} ${v("month")} ${v("year")} at ${v("hour")}:${v("minute")} ${v("timeZoneName")}`;
+  } catch { return d.toUTCString(); }
+}
+function SchedChip({ s, busy, onSendNow, onCancel }: { s: Sched; busy: boolean; onSendNow: () => void; onCancel: () => void }) {
+  const pending = s.status === "scheduled" && s.next_run_at;
+  const label = pending
+    ? `⏰ Test: on ${fmtWhen(s.next_run_at!, s.timezone)}${s.following_run_at ? ` · next ${fmtWhen(s.following_run_at, s.timezone)}` : ""}`
+    : s.status === "cancelled" ? "⏰ Test: cancelled"
+    : s.status === "sending" ? "⏰ Test: sending…"
+    : `⏰ Test: ${s.last_status === "failed" ? "failed" : "sent"}${s.last_run_at ? ` ${fmtWhen(s.last_run_at, s.timezone)}` : ""}`;
+  const meta = [s.repeat ? s.describe : null, s.run_count ? `sent ${s.run_count}×` : null, s.skip_count ? `skipped ${s.skip_count}×` : null].filter(Boolean).join(" · ");
+  return (
+    <div className="sched-chip" data-sched={s.id} data-status={s.status} role="group" aria-label="Scheduled test message"
+      style={{ alignSelf: "center", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, margin: "4px auto 8px", padding: "5px 6px 5px 10px", maxWidth: "94%",
+        fontSize: 11.5, lineHeight: 1.35, borderRadius: 12, background: "var(--surface-2, rgba(127,127,127,.12))", color: "var(--muted, inherit)",
+        textDecoration: s.status === "cancelled" ? "line-through" : undefined }}>
+      <span style={{ flex: "1 1 auto", minWidth: 0 }}>
+        {label}
+        {meta && <span style={{ display: "block", opacity: 0.8 }}>{meta}</span>}
+        {s.last_status === "failed" && s.last_note && <span style={{ display: "block", color: "var(--red)" }}>{s.last_note}</span>}
+      </span>
+      {pending && (
+        <>
+          <button type="button" className="btn btn-sm" onClick={onSendNow} disabled={busy} style={{ height: 24, padding: "0 9px", fontSize: 11.5 }} data-act="send-now">
+            {busy ? "Sending…" : "Send now"}
+          </button>
+          <button type="button" className="icon-btn" onClick={onCancel} disabled={busy} aria-label="Cancel scheduled message" title="Cancel" data-act="cancel"
+            style={{ width: 24, height: 24, fontSize: 15, lineHeight: 1 }}>×</button>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function Builder(props: { botId: string; name: string; status: string; greeting: string | null; webAccess: boolean; thread: string; messages: BMsg[]; suggestions: string[]; preview: PMsg[] }) {
   const router = useRouter();
   const [bmsgs, setBmsgs] = useState<BMsg[]>(props.messages);
@@ -53,9 +97,55 @@ export function Builder(props: { botId: string; name: string; status: string; gr
   const [, start] = useTransition();
   const bEnd = useRef<HTMLDivElement>(null);
   const pBody = useRef<HTMLDivElement>(null);
+  const [scheds, setScheds] = useState<Record<string, Sched>>({});
+  const [schedBusy, setSchedBusy] = useState<string | null>(null);
+  const resyncPreview = useRef(false);
+  const schedsRef = useRef<Record<string, Sched>>({});
 
   useEffect(() => { setBmsgs(props.messages); }, [props.messages]);
   useEffect(() => { bEnd.current?.scrollIntoView({ block: "end" }); }, [bmsgs, bBusy]);
+  // Scheduled test chips: load on mount, re-poll while any is pending (the worker delivers due ones into this chat).
+  async function loadScheds(): Promise<Sched[]> {
+    const r = await fetch(`/api/app/bots/${props.botId}/scheduled`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+    const items: Sched[] = r?.items ?? [];
+    const prev = schedsRef.current;
+    const next: Record<string, Sched> = {};
+    for (const it of items) next[it.id] = it;
+    // A run we didn't trigger from here (the worker delivered a due one) → pull the new bubble from the server.
+    if (items.some((it) => prev[it.id] && prev[it.id]!.run_count + prev[it.id]!.skip_count !== it.run_count + it.skip_count)) {
+      resyncPreview.current = true;
+      router.refresh();
+    }
+    schedsRef.current = next;
+    setScheds(next);
+    const byMsg = new Map(items.filter((it) => it.messageId).map((it) => [it.messageId!, it.id]));
+    if (byMsg.size) setPmsgs((m) => m.map((x) => (x.kind === "tool" && !x.sched && byMsg.has(x.id) ? { ...x, sched: byMsg.get(x.id) } : x)));
+    return items;
+  }
+  useEffect(() => { void loadScheds(); }, []);   // eslint-disable-line react-hooks/exhaustive-deps
+  const anyPending = Object.values(scheds).some((s) => s.status === "scheduled");
+  useEffect(() => {
+    if (!anyPending) return;
+    const t = setInterval(() => { if (!document.hidden) void loadScheds(); }, 15_000);
+    return () => clearInterval(t);
+  }, [anyPending]);   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!resyncPreview.current || pBusy) return;
+    resyncPreview.current = false;
+    setPmsgs(props.preview);
+    void loadScheds();
+  }, [props.preview]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function schedAct(sid: string, act: "send-now" | "cancel") {
+    setSchedBusy(sid);
+    const r = await fetch(`/api/app/bots/${props.botId}/scheduled/${sid}/${act}`, { method: "POST" }).then((x) => x.json()).catch(() => null);
+    setSchedBusy(null);
+    if (r?.item) { schedsRef.current = { ...schedsRef.current, [sid]: { ...schedsRef.current[sid], ...r.item } }; setScheds(schedsRef.current); }
+    if (r?.ok && r.text) setPmsgs((m) => [...m, { id: `s${Date.now()}`, kind: "them", text: r.text }]);
+    else if (r?.ok && r.mode === "queued") setPmsgs((m) => [...m, { id: `n${Date.now()}`, kind: "note", text: "Queued: the gateway sends it on its next pass." }]);
+    else if (!r?.ok) setPmsgs((m) => [...m, { id: `e${Date.now()}`, kind: "note", text: `Couldn't ${act === "cancel" ? "cancel" : "send"} it: ${r?.error ?? "network error"}` }]);
+  }
+
   useEffect(() => { pBody.current?.scrollTo({ top: pBody.current.scrollHeight, behavior: "smooth" }); }, [pmsgs, pBusy]);
 
   async function sendBuilder(t: string) {
@@ -79,7 +169,10 @@ export function Builder(props: { botId: string; name: string; status: string; gr
       setPmsgs((m) => [...m, { id: "e" + Date.now(), kind: "note", text: `Couldn't get a reply: ${r.error}` }]);
       return;
     }
-    const tools: PMsg[] = r.result.toolCalls.map((tc, i) => ({ id: `t${Date.now()}${i}`, kind: "tool", text: `${tc.ok ? "⚙" : "⚠"} ${tc.name}` }));
+    const tools: PMsg[] = r.result.toolCalls.map((tc, i) => {
+      const sid = tc.name === "schedule_message" && tc.ok && typeof (tc.output as any)?.id === "string" ? (tc.output as any).id as string : undefined;
+      return { id: `t${Date.now()}${i}`, kind: "tool", text: `${tc.ok ? "⚙" : "⚠"} ${tc.name}`, sched: sid };
+    });
     if (tools.length) setPmsgs((m) => [...m, ...tools]);
     const replies = r.result.replies.length ? r.result.replies : ["(no reply)"];
     for (let i = 0; i < replies.length; i++) {
@@ -87,6 +180,7 @@ export function Builder(props: { botId: string; name: string; status: string; gr
       setPmsgs((m) => [...m, { id: `a${Date.now()}${i}`, kind: "them", text: replies[i]! }]);
     }
     setPBusy(false);
+    if (tools.some((t) => t.sched)) void loadScheds();
   }
 
   async function uploadAndSend(f: File) {
@@ -103,6 +197,23 @@ export function Builder(props: { botId: string; name: string; status: string; gr
   }
 
   const statusLine = props.status === "live" ? "Live on your channels" : pBusy ? "typing…" : "Preview · uses your draft";
+  const renderP = (m: PMsg, i: number) => {
+    if (m.kind === "tool") return <div key={m.id} className="toolchip">{m.text}</div>;
+    if (m.kind === "note") return <div key={m.id} className="empty-chat" style={{ padding: "6px 10px", color: "var(--red)" }}>{m.text}</div>;
+    const nxt = pmsgs[i + 1];
+    const tail = !nxt || nxt.kind !== m.kind;
+    const prev = pmsgs[i - 1];
+    const gap = prev && prev.kind !== m.kind && prev.kind !== "tool";
+    return <div key={m.id} className={`bub ${m.kind}${tail ? " tail" : ""}${gap ? " gap" : ""}`} data-role={m.kind}>{m.text}</div>;
+  };
+  // A schedule_message chip sits right under the bot's reply that follows the tool call (like Flow's test chat).
+  const schedAfter = new Map<number, string[]>();
+  pmsgs.forEach((m, i) => {
+    if (m.kind !== "tool" || !m.sched) return;
+    let j = i;
+    while (j + 1 < pmsgs.length && (pmsgs[j + 1]!.kind === "tool" || pmsgs[j + 1]!.kind === "them")) j++;
+    schedAfter.set(j, [...(schedAfter.get(j) ?? []), m.sched]);
+  });
   return (
     <main id="main" className="build">
       <section className="build-left" aria-label="Builder">
@@ -181,13 +292,11 @@ export function Builder(props: { botId: string; name: string; status: string; gr
                   </div>
                 )}
                 {pmsgs.map((m, i) => {
-                  if (m.kind === "tool") return <div key={m.id} className="toolchip">{m.text}</div>;
-                  if (m.kind === "note") return <div key={m.id} className="empty-chat" style={{ padding: "6px 10px", color: "var(--red)" }}>{m.text}</div>;
-                  const nxt = pmsgs[i + 1];
-                  const tail = !nxt || nxt.kind !== m.kind;
-                  const prev = pmsgs[i - 1];
-                  const gap = prev && prev.kind !== m.kind && prev.kind !== "tool";
-                  return <div key={m.id} className={`bub ${m.kind}${tail ? " tail" : ""}${gap ? " gap" : ""}`} data-role={m.kind}>{m.text}</div>;
+                  const chips = schedAfter.get(i)?.map((sid) => scheds[sid] && (
+                    <SchedChip key={"sc" + sid} s={scheds[sid]!} busy={schedBusy === sid} onSendNow={() => void schedAct(sid, "send-now")} onCancel={() => void schedAct(sid, "cancel")} />
+                  ));
+                  const el = renderP(m, i);
+                  return chips?.length ? <div key={m.id + "-w"} style={{ display: "contents" }}>{el}{chips}</div> : el;
                 })}
                 {pBusy && <div className="typing" aria-label="Bot is typing"><i /><i /><i /></div>}
                 {!pBusy && pmsgs.length > 0 && pmsgs.at(-1)!.kind === "them" && skin === "imessage" ? null : null}

@@ -23,7 +23,7 @@ export interface ScheduledRow {
   id: string; bot_id: string; customer_id: string; channel: string; prompt: string; text: string | null; status: string;
   send_at: string; repeat: Repeat | null; days: string | null; at_time: string | null; timezone: string;
   first_run_at: string | null; next_run_at: string | null; last_run_at: string | null; last_status: string | null; last_note: string | null;
-  run_count: number; skip_count: number; is_test: number; error: string | null; sent_at: string | null; created_at: string;
+  run_count: number; skip_count: number; is_test: number; attempts: number; error: string | null; sent_at: string | null; created_at: string;
 }
 
 const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
@@ -142,11 +142,35 @@ function normRepeat(r: unknown): Repeat | null | undefined {
   return undefined;
 }
 
+function detectRepeat(lower: string): { repeat: Repeat | null; days: string[] | null; dom: number | null; note: string | null } {
+  let repeat: Repeat | null = null, days: string[] | null = null, dom: number | null = null, note: string | null = null;
+  const every = /\b(every|each)\b/.test(lower);
+  const named = parseDays(lower.replace(/\bweekdays?\b|\bweekends?\b/g, ""));
+  const plural = /\b(sun|mon|tues|wednes|thurs|fri|satur)days\b/.test(lower);
+  if (/\bevery\s*other\b|\bevery\s+\d+\s+(day|week|month)s?\b|\bfortnightly\b|\bbiweekly\b/.test(lower)) note = "custom intervals aren't supported; using the nearest of daily/weekly/monthly";
+  if (/\b(every|each)\s+(day|morning|evening|night|afternoon)\b|\bdaily\b|\beveryday\b|\bevery\s+\d+\s+days?\b/.test(lower)) repeat = "daily";
+  else if (/\b(every|each)\s+weekdays?\b|\bweekdays\b|\bmon(day)?\s*(-|to|through|thru)\s*fri(day)?\b/.test(lower)) { repeat = "weekly"; days = ["mon", "tue", "wed", "thu", "fri"]; }
+  else if (/\b(every|each)\s+weekends?\b|\bweekends\b/.test(lower)) { repeat = "weekly"; days = ["sun", "sat"]; }
+  else if (named && (every || plural)) { repeat = "weekly"; days = named; }
+  else if (/\b(every|each)\s+(other\s+)?week\b|\bweekly\b|\bfortnightly\b|\bbiweekly\b|\bevery\s+\d+\s+weeks?\b/.test(lower)) { repeat = "weekly"; days = named; }
+  else if (/\b(every|each)\s+(other\s+)?month\b|\bmonthly\b|\bevery\s+\d+\s+months?\b/.test(lower)) {
+    repeat = "monthly";
+    const m = lower.match(/\b(\d{1,2})(?:st|nd|rd|th)\b/) ?? lower.match(/\bon\s+(?:the\s+)?(\d{1,2})\b/);
+    if (m && Number(m[1]) >= 1 && Number(m[1]) <= 31) dom = Number(m[1]);
+  }
+  return { repeat, days, dom, note: repeat ? note : null };
+}
+function isoWallTime(when: string, tz: string): string | null {
+  if (/[zZ]$|[+-]\d{2}:?\d{2}$/.test(when)) { const d = new Date(when); if (isNaN(+d)) return null; const p = local(d, tz); return `${pad(p.h)}:${pad(p.mi)}`; }
+  const m = when.match(/[T ](\d{2}):(\d{2})/);
+  return m ? `${m[1]}:${m[2]}` : null;
+}
+
 /**
  * Natural language (or ISO) → schedule. Never throws: an unparseable `when` falls back to 24h from now with a note,
  * so delivery is never blocked by phrasing (the note ends up in scheduled_messages.last_note).
  */
-export function parseSchedule(input: ScheduleInput, opts: { now?: Date; defaultTimezone?: string } = {}): ParsedSchedule {
+export function parseSchedule(input: ScheduleInput, opts: { now?: Date; defaultTimezone?: string; context?: string } = {}): ParsedSchedule {
   const now = opts.now ?? new Date();
   const notes: string[] = [];
   const when = String(input.when ?? "").trim();
@@ -164,19 +188,21 @@ export function parseSchedule(input: ScheduleInput, opts: { now?: Date; defaultT
   let repeat = normRepeat(input.repeat);
   let days: string[] | null = input.days ? parseDays(input.days) : null;
   let dom: number | null = input.days && /^\d{1,2}$/.test(input.days.trim()) ? Number(input.days) : null;
+  let time2 = time;
   if (repeat === undefined) {
-    repeat = null;
-    const every = /\b(every|each)\b/.test(lower);
-    const named = parseDays(lower.replace(/\bweekdays?\b|\bweekends?\b/g, ""));
-    const plural = /\b(sun|mon|tues|wednes|thurs|fri|satur)days\b/.test(lower);
-    if (/\bevery\s*other\b|\bevery\s+\d+\s+(day|week|month)s?\b|\bfortnightly\b|\bbiweekly\b/.test(lower)) notes.push("custom intervals aren't supported; using the nearest of daily/weekly/monthly");
-    if (/\b(every|each)\s+(day|morning|evening|night|afternoon)\b|\bdaily\b|\beveryday\b|\bevery\s+\d+\s+days?\b/.test(lower)) repeat = "daily";
-    else if (/\b(every|each)\s+weekdays?\b|\bweekdays\b|\bmon(day)?\s*(-|to|through|thru)\s*fri(day)?\b/.test(lower)) { repeat = "weekly"; days = ["mon", "tue", "wed", "thu", "fri"]; }
-    else if (/\b(every|each)\s+weekends?\b|\bweekends\b/.test(lower)) { repeat = "weekly"; days = ["sun", "sat"]; }
-    else if (named && (every || plural)) { repeat = "weekly"; days = named; }
-    else if (/\b(every|each)\s+(other\s+)?week\b|\bweekly\b|\bfortnightly\b|\bbiweekly\b|\bevery\s+\d+\s+weeks?\b/.test(lower)) repeat = "weekly";
-    else if (/\b(every|each)\s+(other\s+)?month\b|\bmonthly\b|\bevery\s+\d+\s+months?\b/.test(lower)) repeat = "monthly";
-    if (repeat === "weekly" && !days && named) days = named;
+    let d = detectRepeat(lower);
+    // The model sometimes flattens "every Monday at 9am" into one ISO date. The customer's own words decide.
+    const ctx = String(opts.context ?? "").toLowerCase();
+    if (!d.repeat && ctx) {
+      const c = detectRepeat(ctx);
+      if (c.repeat) {
+        d = c;
+        notes.push("repeat taken from the customer's message");
+        if (!time2) time2 = parseTime(ctx) ?? (iso ? isoWallTime(when, tz) : null);
+      }
+    }
+    repeat = d.repeat; days = days ?? d.days; dom = dom ?? d.dom;
+    if (d.note) notes.push(d.note);
   }
   if (repeat === "monthly" && dom == null) {
     const m = lower.match(/\b(\d{1,2})(?:st|nd|rd|th)\b/) ?? lower.match(/\bon\s+(?:the\s+)?(\d{1,2})\b/);
@@ -184,7 +210,7 @@ export function parseSchedule(input: ScheduleInput, opts: { now?: Date; defaultT
   }
 
   if (repeat) {
-    let atTime = time;
+    let atTime = time2;
     if (!atTime) { atTime = "09:00"; notes.push("no time given; using 09:00"); }
     const p = local(now, tz);
     const rec: Recurrence = {

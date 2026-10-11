@@ -100,6 +100,14 @@ await step("DST: weekly 9am New York stays 9am local across the Nov 1 change", (
   const b = S.nextOccurrence(rec, new Date("2026-10-20T00:00:00Z"));   // Mon 26 Oct
   assert.equal(b.toISOString(), "2026-10-26T13:00:00.000Z");           // EDT (-4)
 });
+await step("model flattened 'every Monday at 9am' to ISO → recurrence recovered from the customer's message", () => {
+  const r = S.parseSchedule({ when: "2026-10-12T09:00:00Z" }, { now: NOW, context: "Also remind me every Monday at 9am to check my tea stock" });
+  assert.deepEqual([r.repeat, r.days, r.atTime], ["weekly", "mon", "09:00"]);
+  assert.equal(r.first.toISOString(), "2026-10-12T09:00:00.000Z"); assert.match(r.note!, /customer's message/);
+  const t = S.parseSchedule({ when: "2026-10-12T14:30:00Z" }, { now: NOW, context: "every monday please" });
+  assert.equal(t.atTime, "14:30");   // no time in their words → the model's time
+  assert.equal(S.parseSchedule({ when: "in 3 days" }, { now: NOW, context: "remind me in 3 days" }).repeat, null);
+});
 await step("describe", () => {
   assert.equal(S.describeRecurrence({ repeat: "weekly", days: "mon", atTime: "09:00", timezone: "UTC" }), "every Monday at 09:00 UTC");
   assert.equal(S.describeRecurrence({ repeat: "weekly", days: "mon,tue,wed,thu,fri", atTime: "08:30", timezone: "Europe/London" }), "every weekday at 08:30 (Europe/London)");
@@ -133,6 +141,13 @@ await step("tool parses 'every Monday at 9am' into repeat/days/at_time", async (
   assert.deepEqual([r.repeat, r.days, r.at_time, r.timezone], ["weekly", "mon", "09:00", "UTC"]);
   assert.equal(new Date(r.next_run_at!).getUTCDay(), 1); assert.equal(new Date(r.next_run_at!).getUTCHours(), 9);
   assert.equal(o.schedule, "every Monday at 09:00 UTC");
+});
+await step("old-schema call (ISO send_at) after 'every Monday at 9am' in chat → weekly row", async () => {
+  run("INSERT INTO messages(id,conversation_id,role,content) VALUES (?,?,?,?)", [id("m_"), testConv, "user", "remind me every Monday at 9am to check my tea stock"]);
+  const o = await tool({ send_at: "2030-01-07T09:00:00Z", prompt: "check stock" }, { customerId: testCust, conversationId: testConv, channel: "web", isTest: true });
+  const r = row(o.id);
+  assert.deepEqual([r.repeat, r.days, r.at_time], ["weekly", "mon", "09:00"]);
+  run("DELETE FROM scheduled_messages WHERE id=?", [o.id]);
 });
 await step("checks / simulated users (isTest on imessage, or dryRun) persist nothing", async () => {
   const before = all("SELECT id FROM scheduled_messages").length;

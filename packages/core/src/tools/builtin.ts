@@ -1,5 +1,5 @@
 // Builtin tools every bot gets (stored as tools rows with kind=builtin so the owner can see/disable them).
-import { run, logEvent } from "@threadline/db";
+import { run, get, logEvent } from "@threadline/db";
 import type { ToolSpec, TableSpec } from "../config.ts";
 import type { ToolImpl } from "./types.ts";
 import { searchKnowledge } from "../knowledge.ts";
@@ -63,8 +63,11 @@ export const builtinImpls: Record<string, ToolImpl> = {
     return { ok: true, note: "The owner has been notified and will reply in this thread." };
   },
   async schedule_message(input, ctx) {
+    // The customer's latest message is passed as context: if the model flattened "every Monday at 9am" into one ISO
+    // date (or the bot was built with the older one-shot tool schema), the recurrence still comes through.
+    const said = get<{ content: string }>("SELECT content FROM messages WHERE conversation_id=? AND role='user' ORDER BY created_at DESC, rowid DESC LIMIT 1", [ctx.conversationId])?.content;
     const sched = parseSchedule({ when: input.send_at ?? input.when, repeat: input.repeat, days: input.days, time: input.time, timezone: input.timezone },
-      { defaultTimezone: process.env.SCHEDULER_DEFAULT_TZ });
+      { defaultTimezone: process.env.SCHEDULER_DEFAULT_TZ, context: said });
     const out = { scheduled_for: sched.first.toISOString(), repeat: sched.repeat ?? "none", schedule: describeRecurrence(sched), timezone: sched.timezone,
       ...(sched.note ? { note: sched.note } : {}) };
     // Checks/simulated users: nothing is persisted. The Build → Test preview (channel 'web') gets a real test row,
