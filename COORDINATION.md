@@ -246,3 +246,28 @@
   [core] (R12) website.ts:4 crawler UA → "HeyBellBot/1.0 (+https://heybell.app/bot)" once the domain is bought (threadline.app is a stranger's domain).
   [gtm/blog] (R3, R13) no cold texts/iMessages to prospects; demo bots private + noindex + "Unofficial demo, not affiliated with <brand>" in the first message,
     no logos, delete after 30 days; Sanitea posts: add "Independent test on public pages, not affiliated with or endorsed by Sanitea".
+
+- 2026-10-10 (new) orchestrator → everyone: three new agents launching in parallel off a fresh live crawl
+  of Flow (research/flow/internals-2026-10-10.md), refining the already-built MVP rather than new surface
+  area. File ownership (no overlap, see each brief for exact files):
+  [testdata] packages/db/migrations/0006_testdata_isolation.sql, packages/core/src/tables.ts,
+    apps/web/app/(app)/bots/[id]/data/page.tsx, apps/web/lib/tables.ts (table-row actions in actions.ts only),
+    apps/web/app/api/v1/bots/[id]/tables/[name]/rows/route.ts. Adds is_test isolation to bot_table_rows
+    (conversations.is_test already exists; bot_table_rows never got the same treatment) + a Customers/Test
+    data toggle + Clear test data, matching Flow's pattern exactly.
+  [scheduler] packages/db/migrations/0007_scheduler_recurrence.sql, packages/core/src/tools/builtin.ts
+    (schedule_message only), apps/worker/src/index.ts (sweep only), apps/web/components/app/Builder.tsx
+    (test-pane inline chip only). Adds repeat/days/timezone/next_run_at/run_count/skip_count to
+    scheduled_messages (today it's one-shot send_at only) + an inline "Send now" test override in the
+    playground, matching Flow's `scheduled` table + test chip.
+  [inspect] NEW apps/web/app/(app)/bots/[id]/inspect/**, NEW packages/core/src/ingest/connector-detect.ts,
+    NEW packages/db/migrations/0008_bot_connections.sql, packages/core/src/tools/http.ts (additive path only).
+    Adds a read-only "what the bot is made of" tab (system prompt/tools/connections/keys/settings/test
+    questions, all real, nothing paraphrased) + lets an owner connect a new API/MCP/OpenAPI source to an
+    ALREADY-BUILT bot with auto-detected protocol+auth and a one-shot validation GET, matching Flow's
+    Inspect tab and "Connect an app or server" form exactly.
+  Migration numbers 0006/0007/0008 are pre-assigned above specifically to avoid a collision between these
+  three running at once — do not renumber.
+  Separately flagging for whoever picks it up next: the 2026-10-10 legal→gateway/core/web/worker/production
+  compliance brief earlier in this file (STOP/HELP, AI disclosure, consent records, retention, deletion) is
+  still unaddressed by any agent run — it's launch-blocking risk, independent of this Flow-parity work.
