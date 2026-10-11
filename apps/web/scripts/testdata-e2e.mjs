@@ -53,6 +53,25 @@ async function tablesView(botId, mode) {
   });
 }
 
+/** Sends one message in Build (builder chat or the test playground) and returns the new replies. Retries after a reload:
+ *  other agents' edits make the dev server recompile, which can reload the page mid-send. */
+async function say(kind, text) {
+  const [input, send, sel] = kind === "builder"
+    ? ["#builder-input", null, "#builder-chat .bmsg.assistant .txt"]
+    : ["#preview-input", "#preview-send", '#preview-thread .bub[data-role="them"]'];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt || !page.url().includes(`/bots/${botId}/build`)) await go(`/bots/${botId}/build`);
+    await page.waitForSelector(input);
+    await sleep(1500);
+    const n = await page.$$eval(sel, (e) => e.length);
+    await page.type(input, text);
+    if (send) await page.click(send); else await page.keyboard.press("Enter");
+    const ok = await page.waitForFunction((s, n) => document.querySelectorAll(s).length > n && !document.querySelector("#preview-thread .typing"), { timeout: TIMEOUT / 2 }, sel, n).then(() => true, () => false);
+    if (ok) return page.$$eval(sel, (e, n) => e.slice(n).map((x) => x.textContent).join(" | "), n);
+  }
+  throw new Error(`${kind} never answered: ${text.slice(0, 60)}`);
+}
+
 let botId, apiKey, tableName;
 try {
   await step("sign up via dev magic link", async () => {
@@ -107,18 +126,10 @@ try {
   });
 
   await step("builder: take orders into the Orders table (not the pretend create_order tool)", async () => {
-    await go(`/bots/${botId}/build`);
-    await page.waitForSelector("#builder-input");
-    const before = await page.$$eval("#builder-chat .bmsg.assistant .txt", (e) => e.length);
-    await page.type("#builder-input", "When a customer places an order, save it as a row in the Orders table. Remove the create_order tool so orders only go into the Orders table.");
-    await page.keyboard.press("Enter");
-    await page.waitForFunction((n) => document.querySelectorAll("#builder-chat .bmsg.assistant .txt").length > n, { timeout: TIMEOUT }, before);
-    return (await page.$$eval("#builder-chat .bmsg.assistant .txt", (e) => e.at(-1).textContent)).slice(0, 200);
+    return (await say("builder", "When a customer places an order, save it as a row in the Orders table. Remove the create_order tool so orders only go into the Orders table.")).slice(0, 200);
   });
 
   await step("Build playground: test-chat an order into existence", async () => {
-    await go(`/bots/${botId}/build`);
-    await page.waitForSelector("#preview-input");
     const msgs = [
       "Hi, I'd like to order 2 bags of Ethiopia Yirgacheffe, whole bean. My name is Sam Test, phone 5550101. Please add it to your Orders list.",
       "Yes, that's all correct. Please save it to the Orders list now.",
@@ -127,11 +138,7 @@ try {
       "Yes. Save it to Orders.",
     ];
     for (const m of msgs) {
-      const before = await page.$$eval('#preview-thread .bub[data-role="them"]', (e) => e.length);
-      await page.type("#preview-input", m);
-      await page.click("#preview-send");
-      await page.waitForFunction((n) => document.querySelectorAll('#preview-thread .bub[data-role="them"]').length > n, { timeout: TIMEOUT }, before);
-      await page.waitForFunction(() => !document.querySelector("#preview-thread .typing"), { timeout: TIMEOUT });
+      await say("preview", m);
       const v = await page.evaluate(async (id) => (await fetch(`/bots/${id}/data?tab=tables&rows=test`)).text(), botId);
       if (/data-test-count="[1-9]/.test(v)) break;
     }
@@ -160,8 +167,13 @@ try {
   await step("Clear test data (confirm) → gone", async () => {
     await go(`/bots/${botId}/data?tab=tables&rows=test`);
     await page.waitForSelector("[data-clear-test]");
-    await page.click("[data-clear-test]");
-    await page.waitForFunction(() => document.querySelector("[data-test-count]")?.getAttribute("data-test-count") === "0", { timeout: 30000 });
+    // Under load the button can render before React hydrates it; click again until the action lands.
+    let cleared = false;
+    for (let i = 0; i < 5 && !cleared; i++) {
+      await page.click("[data-clear-test]").catch(() => {});
+      cleared = await page.waitForFunction(() => document.querySelector("[data-test-count]")?.getAttribute("data-test-count") === "0", { timeout: 15000 }).then(() => true, () => false);
+    }
+    if (!cleared) throw new Error("test rows still there after clicking Clear test data");
     await shot("tables-test-cleared");
     const t = await tablesView(botId, "test");
     if (t.badge !== 0 || t.count !== 0) throw new Error(JSON.stringify(t));
@@ -207,6 +219,29 @@ try {
     const t = await tablesView(botId, "test");
     if (t.badge !== 0) throw new Error("API row leaked into Test data: " + JSON.stringify(t));
     return { status: r.status, id: j.data.id, customers: c.count, test: t.badge };
+  });
+
+  await step("owner-filled catalog row (dashboard editor) is real, and a Test chat can read it", async () => {
+    await say("builder", "Add a table called House Specials that I fill in myself (the bot only reads it), with columns Name and Price. When customers ask for a recommendation, look it up and recommend from it.");
+    await go(`/bots/${botId}/data?tab=tables`);
+    const sec = await page.waitForSelector('section[data-table="House Specials"]', { timeout: 30000 });
+    const id = await sec.evaluate((e) => e.id);
+    for (let i = 0; i < 5; i++) {
+      await page.$eval(`#${id} input[aria-label="New Name"]`, (e) => { e.focus(); });
+      await page.type(`#${id} input[aria-label="New Name"]`, "Zebra Moon Geisha");
+      await page.type(`#${id} input[aria-label="New Price"]`, "$29");
+      await page.click(`#${id} .btn-primary`);
+      const ok = await page.waitForFunction((sid) => document.querySelector(`#${sid}`)?.getAttribute("data-rows-count") === "1", { timeout: 15000 }, id).then(() => true, () => false);
+      if (ok) break;
+      await go(`/bots/${botId}/data?tab=tables`); // not hydrated yet: reload and retry
+    }
+    const live = await tablesView(botId, "live");
+    const specials = await page.$eval('section[data-table="House Specials"]', (e) => ({ n: e.getAttribute("data-rows-count"), text: e.innerText }));
+    if (specials.n !== "1" || live.badge !== 0) throw new Error("catalog row: " + JSON.stringify({ specials, badge: live.badge }));
+    const reply = await say("preview", "What's on your House Specials list right now? Recommend one.");
+    await shot("playground-reads-catalog");
+    if (!/zebra moon/i.test(reply)) throw new Error("test chat didn't see the real catalog row: " + reply);
+    return reply.slice(0, 200);
   });
 
   await step("mobile: toggle fits at 390px", async () => {
