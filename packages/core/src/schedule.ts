@@ -295,8 +295,15 @@ export function followingRun(r: ScheduledRow): string | null {
 }
 
 export function insertScheduled(o: { botId: string; customerId: string; channel: string; prompt: string; schedule: ParsedSchedule; isTest: boolean }) {
-  const sid = id("sm_");
   const first = iso(o.schedule.first);
+  // Models sometimes call the tool twice for one request: same customer + same slot + same repeat, made in the last
+  // 10 minutes and still pending → reuse it instead of sending the customer two reminders.
+  const dup = get<{ id: string }>(
+    `SELECT id FROM scheduled_messages WHERE bot_id=? AND customer_id=? AND status='scheduled' AND next_run_at=? AND COALESCE(repeat,'')=?
+       AND COALESCE(days,'')=? AND created_at >= datetime('now','-10 minutes') LIMIT 1`,
+    [o.botId, o.customerId, first, o.schedule.repeat ?? "", o.schedule.days ?? ""]);
+  if (dup) return dup.id;
+  const sid = id("sm_");
   run(`INSERT INTO scheduled_messages(id,bot_id,customer_id,channel,prompt,send_at,repeat,days,at_time,timezone,first_run_at,next_run_at,last_note,is_test)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [sid, o.botId, o.customerId, o.channel, o.prompt, first, o.schedule.repeat, o.schedule.days, o.schedule.atTime, o.schedule.timezone, first, first, o.schedule.note, o.isTest ? 1 : 0]);
@@ -340,13 +347,16 @@ export async function deliverTest(r: ScheduledRow): Promise<string> {
   const memories = getMemories(r.customer_id);
   const recent = all<{ role: string; content: string }>(
     "SELECT role, content FROM messages WHERE conversation_id=? AND role IN ('user','assistant') ORDER BY created_at DESC, rowid DESC LIMIT 8", [conv.id]).reverse();
-  const res = await complete({
+  const ask = () => complete({
     system: `You are ${config.profile.name}. Persona: ${config.profile.persona}\nBusiness: ${config.profile.businessSummary}\nWrite ONE short proactive message to a customer: this is a reminder/follow-up they asked for earlier. Plain text, no markdown, no greeting fluff, no placeholders like [name]. Facts about them: ${JSON.stringify(memories)}. Only state facts given in the instruction or business info. Output only the message text.`,
     messages: [{ role: "user", content: `Recent conversation:\n${recent.map((m) => `${m.role}: ${m.content}`).join("\n") || "(none)"}\n\nScheduled instruction: ${r.prompt}` }],
-    botId: r.bot_id, category: "tests", tier: "fast", maxTokens: 300,
+    botId: r.bot_id, category: "tests", tier: "fast", maxTokens: 500,
     offline: () => ({ text: r.prompt }),
   });
-  const text = res.text.trim().replace(/^"|"$/g, "").replace(/\*\*(.+?)\*\*/g, "$1") || r.prompt;
+  const clean = (t: string) => t.trim().replace(/^"|"$/g, "").replace(/\*\*(.+?)\*\*/g, "$1");
+  let text = clean((await ask()).text);
+  if (!text) text = clean((await ask()).text);   // rare empty completion: one retry, then the instruction itself
+  text ||= r.prompt;
   run("INSERT INTO messages(id,conversation_id,role,content) VALUES (?,?,?,?)", [id("m_"), conv.id, "assistant", text]);
   run("UPDATE conversations SET last_message_at=datetime('now') WHERE id=?", [conv.id]);
   run("UPDATE scheduled_messages SET text=? WHERE id=?", [text, r.id]);

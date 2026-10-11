@@ -143,11 +143,20 @@ await step("tool parses 'every Monday at 9am' into repeat/days/at_time", async (
   assert.equal(o.schedule, "every Monday at 09:00 UTC");
 });
 await step("old-schema call (ISO send_at) after 'every Monday at 9am' in chat → weekly row", async () => {
-  run("INSERT INTO messages(id,conversation_id,role,content) VALUES (?,?,?,?)", [id("m_"), testConv, "user", "remind me every Monday at 9am to check my tea stock"]);
-  const o = await tool({ send_at: "2030-01-07T09:00:00Z", prompt: "check stock" }, { customerId: testCust, conversationId: testConv, channel: "web", isTest: true });
+  const cust = ensureCustomer(botId, "web", "other-preview"), conv = openConversation(botId, cust, "web", true).id;
+  run("INSERT INTO messages(id,conversation_id,role,content) VALUES (?,?,?,?)", [id("m_"), conv, "user", "remind me every Monday at 9am to check my tea stock"]);
+  const o = await tool({ send_at: "2030-01-07T09:00:00Z", prompt: "check stock" }, { customerId: cust, conversationId: conv, channel: "web", isTest: true });
   const r = row(o.id);
   assert.deepEqual([r.repeat, r.days, r.at_time], ["weekly", "mon", "09:00"]);
   run("DELETE FROM scheduled_messages WHERE id=?", [o.id]);
+});
+await step("the same reminder twice in one turn → one row (dedupe)", async () => {
+  const a = await tool({ send_at: "every Friday at 6pm", prompt: "a" }, { customerId: testCust, conversationId: testConv, channel: "web", isTest: true });
+  const b = await tool({ send_at: "every friday 18:00", prompt: "a again" }, { customerId: testCust, conversationId: testConv, channel: "web", isTest: true });
+  assert.equal(a.id, b.id);
+  const c = await tool({ send_at: "every Friday at 7pm", prompt: "different slot" }, { customerId: testCust, conversationId: testConv, channel: "web", isTest: true });
+  assert.notEqual(c.id, a.id);
+  run("DELETE FROM scheduled_messages WHERE id IN (?,?)", [a.id, c.id]);
 });
 await step("checks / simulated users (isTest on imessage, or dryRun) persist nothing", async () => {
   const before = all("SELECT id FROM scheduled_messages").length;

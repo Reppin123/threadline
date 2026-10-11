@@ -70,13 +70,13 @@ function SchedChip({ s, busy, onSendNow, onCancel }: { s: Sched; busy: boolean; 
         {s.last_status === "failed" && s.last_note && <span style={{ display: "block", color: "var(--red)" }}>{s.last_note}</span>}
       </span>
       {pending && (
-        <>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, flex: "0 0 auto", marginLeft: "auto" }}>
           <button type="button" className="btn btn-sm" onClick={onSendNow} disabled={busy} style={{ height: 24, padding: "0 9px", fontSize: 11.5 }} data-act="send-now">
             {busy ? "Sending…" : "Send now"}
           </button>
           <button type="button" className="icon-btn" onClick={onCancel} disabled={busy} aria-label="Cancel scheduled message" title="Cancel" data-act="cancel"
             style={{ width: 24, height: 24, fontSize: 15, lineHeight: 1 }}>×</button>
-        </>
+        </span>
       )}
     </div>
   );
