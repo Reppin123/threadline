@@ -1,16 +1,20 @@
 // Threadline background worker: claims jobs from the SQLite queue (packages/db) and runs them via @threadline/core.
 // Env: THREADLINE_DB, WORKER_PORT (3200), WORKER_CONCURRENCY (2), WORKER_POLL_MS (1000), WORKER_ONCE=1 (exit when queue empty).
-// send_scheduled jobs are owned by the gateway outbound loop and deliberately not claimed here.
+// send_scheduled jobs are owned by the gateway outbound loop and deliberately not claimed here. The worker runs the
+// scheduled-message sweep instead (WORKER_SCHEDULE_MS, 5000): records runs the gateway finished, rolls recurring rows
+// to their next occurrence, and delivers due Build → Test rows into the test chat (packages/core/src/schedule.ts).
 import { createServer } from "node:http";
 import { hostname } from "node:os";
 import { all, get, run, json, claimJob, completeJob, failJob, requeueStaleJobs, logEvent, dbPath, type JobRow } from "@threadline/db";
 import { core, ops } from "@threadline/core";
+import { sweepScheduled } from "@threadline/core/schedule";
 
 const PORT = Number(process.env.WORKER_PORT || 3200);
 const CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY || 2));
 const POLL_MS = Number(process.env.WORKER_POLL_MS || 1000);
 const HEARTBEAT_MS = Number(process.env.WORKER_HEARTBEAT_MS || 60_000);
 const ONCE = process.env.WORKER_ONCE === "1";
+const SCHEDULE_MS = Number(process.env.WORKER_SCHEDULE_MS || 5000);
 const WORKER_PREFIX = `worker@${hostname()}`;
 const WORKER_ID = `${WORKER_PREFIX}:${process.pid}`;
 
@@ -58,7 +62,27 @@ const state = {
   failed: 0,
   lastError: null as null | { jobId: string; type: string; error: string; at: string },
   stopping: false,
+  schedule: { lastSweepAt: null as string | null, recorded: 0, rolled: 0, delivered: 0, failed: 0, lastError: null as string | null },
 };
+
+// ---------- scheduled-message sweep ----------
+let sweeping = false;
+async function scheduleSweep() {
+  if (sweeping || state.stopping) return;
+  sweeping = true;
+  try {
+    const r = await sweepScheduled();
+    const sc = state.schedule;
+    sc.lastSweepAt = new Date().toISOString();
+    sc.recorded += r.recorded; sc.rolled += r.rolled; sc.delivered += r.delivered; sc.failed += r.failed;
+    if (r.recorded || r.delivered || r.failed) log(`schedule sweep`, r);
+  } catch (e: any) {
+    state.schedule.lastError = String(e?.message || e);
+    log(`schedule sweep failed: ${e?.message || e}`);
+  } finally {
+    sweeping = false;
+  }
+}
 
 function log(msg: string, extra?: unknown) {
   console.log(`[worker] ${new Date().toISOString()} ${msg}${extra !== undefined ? " " + JSON.stringify(extra) : ""}`);
@@ -151,6 +175,7 @@ function health() {
     processed: state.processed,
     failed: state.failed,
     lastError: state.lastError,
+    schedule: state.schedule,
     queue,
   };
 }
@@ -183,12 +208,14 @@ async function main() {
   server?.listen(PORT, () => log(`health on http://localhost:${PORT}/health`));
 
   const timers = ONCE ? [] : [
+    setInterval(() => void scheduleSweep(), SCHEDULE_MS),
     setInterval(heartbeat, HEARTBEAT_MS),
     setInterval(() => { try { requeueStaleJobs(15); } catch {} }, 60_000),
     // production: heartbeats are ~2,900 rows/day and only the recent ones matter; keep the snapshot small.
     setInterval(() => { try { run("DELETE FROM events WHERE type IN ('worker_heartbeat','gateway_heartbeat') AND created_at < datetime('now', ?)", [`-${Number(process.env.HEARTBEAT_RETENTION_DAYS || 7)} days`]); } catch {} }, 3_600_000),
   ];
   if (!ONCE) heartbeat();
+  await scheduleSweep();
 
   let signals = 0;
   const stop = (sig: string) => {
@@ -203,6 +230,7 @@ async function main() {
 
   await Promise.all(Array.from({ length: CONCURRENCY }, (_, i) => slot(i)));
   timers.forEach(clearInterval);
+  while (sweeping) await sleep(100);
   server?.close();
   log(`stopped (processed=${state.processed} failed=${state.failed})`);
   process.exit(0);
