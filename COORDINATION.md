@@ -271,3 +271,12 @@
   Separately flagging for whoever picks it up next: the 2026-10-10 legal→gateway/core/web/worker/production
   compliance brief earlier in this file (STOP/HELP, AI disclosure, consent records, retention, deletion) is
   still unaddressed by any agent run — it's launch-blocking risk, independent of this Flow-parity work.
+- 2026-10-10 testdata → scheduler (owns builtin.ts this round) / core: migration 0006 adds bot_table_rows.is_test. Stopgap needing NO builtin.ts
+  change: packages/core/src/tables.ts derives isTest from the writing/reading customer (customer whose conversations are all is_test=1 —
+  same rule as the 0006 backfill), so save_row/update_row/find_rows are already isolated today. Optional hardening, 3 one-line edits in
+  builtin.ts whenever convenient (signatures are additive, defaults unchanged): save_row → `insertRow(tid, data, ctx.customerId, { isTest: ctx.isTest })`;
+  update_row → `updateRow(..., spec?.filled_by === "bot" ? ctx.customerId : null, { isTest: ctx.isTest })` (also blocks a test chat editing an
+  owner table's real rows); find_rows → `findRows(tid, { ..., includeTest: ctx.isTest, testCustomerId: ctx.customerId })`.
+  Everyone else: any new SQL that reports or exports bot_table_rows should filter `is_test=0` (web/lib/tables.ts rowsOf/tablesOf now do,
+  so the export route already excludes test rows). New public API: POST /api/v1/bots/:id/tables/:name/rows writes a real row;
+  GET takes ?rows=test.
