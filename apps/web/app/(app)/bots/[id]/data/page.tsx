@@ -21,7 +21,7 @@ function WhichRows({ mode, testCount, href }: { mode: RowsMode; testCount: numbe
       <div role="group" aria-label="Which rows" style={{ display: "flex", gap: 8 }}>
         <Link className="chip" href={href("live")} aria-pressed={mode === "live"} data-rows="live">Customers</Link>
         <Link className="chip" href={href("test")} aria-pressed={mode === "test"} data-rows="test">
-          Test data <span className={`pill ${testCount ? "pill-blue" : ""}`} data-test-count={testCount} aria-label={`${testCount} test rows`}>{testCount}</span>
+          Test data <span className={`pill no-dot ${testCount ? "pill-blue" : ""}`} data-test-count={testCount} aria-label={`${testCount} test rows`}>{testCount}</span>
         </Link>
       </div>
       <p className="muted" style={{ flex: 1, minWidth: 220, fontSize: 13 }}>
@@ -94,12 +94,19 @@ export default async function DataPage({ params, searchParams }: { params: Promi
           ) : (
             <div className="cards2">
               {tables.filter((t) => match(t.name, t.description, t.columns.join(" "))).map((t) => (
-                <Link key={t.id} href={href("tables") + `#t-${t.id}`} className="card box" style={{ display: "block" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><h3>{t.name}</h3><span className="muted" style={{ fontSize: 12.5 }} data-saved7d={test ? t.test7d : t.saves7d}>{test ? (t.test ? `${t.test} test row${t.test === 1 ? "" : "s"}` : "None yet") : t.saves7d ? `${t.saves7d} saved · 7 days` : "None this week"}</span></div>
+                <div key={t.id} className="card box" style={{ position: "relative", display: "flex", flexDirection: "column" }} data-table={t.name}>
+                  <Link href={href("tables") + `#t-${t.id}`} aria-label={`Open ${t.name}`} style={{ position: "absolute", inset: 0, borderRadius: "inherit" }} />
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <h3>{t.name}</h3>
+                    <span className="muted" style={{ fontSize: 12.5 }} data-saved7d={test ? t.test : t.saves7d}>{test ? (t.test ? `${t.test} test row${t.test === 1 ? "" : "s"}` : "None yet") : t.saves7d ? `${t.saves7d} saved · 7 days` : "None this week"}</span>
+                  </div>
                   <p>{t.description || ""}</p>
                   <div className="cols">{t.columns.map((c) => <span className="col-tag" key={c}>{c}</span>)}</div>
-                  <p style={{ marginTop: 10, fontSize: 12.5 }}>{t.filled_by === "owner" ? "You fill it, the bot reads it" : "The bot fills it from chats"}</p>
-                </Link>
+                  <div style={{ marginTop: "auto", paddingTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                    <p style={{ fontSize: 12.5 }}>{t.filled_by === "owner" ? "You fill it, the bot reads it" : "The bot fills it from chats"}</p>
+                    {test && t.test > 0 && <span style={{ position: "relative", zIndex: 1 }}><ClearTestData botId={bot.id} tableId={t.id} tableName={t.name} count={t.test} /></span>}
+                  </div>
+                </div>
               ))}
             </div>
           )}
