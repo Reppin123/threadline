@@ -9,6 +9,7 @@ import { getBot } from "@/lib/data";
 import { deriveSource, type Missing } from "@/lib/wizard";
 import { startBuild, startChecks } from "@/lib/jobs";
 import { billing } from "@/lib/billing";
+import { clearTestRows } from "@/lib/tables";
 
 function errMsg(e: unknown) {
   return String((e as Error)?.message ?? e).slice(0, 300);
@@ -205,8 +206,18 @@ export async function saveTableRow(botId: string, tableId: string, rowId: string
   getBot(user.id, botId);
   ownTable(botId, tableId);
   if (rowId) run("UPDATE bot_table_rows SET data_json=?, updated_at=datetime('now') WHERE id=? AND table_id=?", [json.str(data), rowId, tableId]);
-  else run("INSERT INTO bot_table_rows(id,table_id,data_json) VALUES (?,?,?)", [id("row_"), tableId, json.str(data)]);
+  else run("INSERT INTO bot_table_rows(id,table_id,data_json,is_test) VALUES (?,?,?,0)", [id("row_"), tableId, json.str(data)]);
   revalidatePath(`/bots/${botId}/data`);
+}
+/** "Clear test data": removes only rows the bot saved during tests (is_test=1) from one table. Real customers' rows stay. */
+export async function clearTestData(botId: string, tableId: string) {
+  const user = await requireUser();
+  getBot(user.id, botId);
+  ownTable(botId, tableId);
+  const n = clearTestRows(tableId);
+  logEvent(botId, "test_data_cleared", { tableId, rows: n });
+  revalidatePath(`/bots/${botId}/data`);
+  return { ok: true as const, cleared: n };
 }
 export async function deleteTableRow(botId: string, tableId: string, rowId: string) {
   const user = await requireUser();
