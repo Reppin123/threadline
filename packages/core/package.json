@@ -6,12 +6,14 @@
   "exports": {
     ".": "./src/index.ts",
     "./contract": "./src/contract.ts",
-    "./ops": "./src/ops.ts"
+    "./ops": "./src/ops.ts",
+    "./schedule": "./src/schedule.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",
     "test": "node --experimental-strip-types src/selftest.ts",
-    "test:billing": "node --experimental-strip-types src/billing-test.ts"
+    "test:billing": "node --experimental-strip-types src/billing-test.ts",
+    "test:schedule": "node --experimental-strip-types src/schedule-test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
