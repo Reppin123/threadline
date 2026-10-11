@@ -35,3 +35,6 @@ export * as stripeBilling from "./billing-stripe.ts";
 export * as safety from "./safety.ts";
 export * as ops from "./ops.ts";
 export * as email from "./email.ts";
+// Inspect tab + "Connect an app or server" (agent inspect).
+export * as inspect from "./inspect.ts";
+export * as connectors from "./ingest/connector-detect.ts";

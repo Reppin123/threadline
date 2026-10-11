@@ -283,6 +283,27 @@ await step("mcp bot: lists tools over Streamable HTTP and calls them", async () 
   assert.ok(r.ok && JSON.stringify(r.output).includes("11:30"), JSON.stringify(r.output));
 });
 
+// ───────── connector detection (agent inspect; full matrix: src/connector-test.ts) ─────────
+await step("connector-detect: OpenAPI vs plain vs MCP, no key → none, key → bearer first; saved connection is callable", async () => {
+  const { detectConnector, addConnection } = await import("./ingest/connector-detect.ts");
+  const oa = await detectConnector({ address: `${origin}/api` });
+  assert.equal(oa.kind, "openapi"); assert.equal(oa.specUrl, `${origin}/api/openapi.json`); assert.equal(oa.auth, "none");
+  const plain = await detectConnector({ address: `${origin}/shipping` });
+  assert.equal(plain.kind, "plain"); assert.equal(plain.auth, "none"); assert.ok(plain.ok, plain.error);
+  const keyed = await detectConnector({ address: `${origin}/shipping`, key: "k-1" });
+  assert.equal(keyed.auth, "bearer"); assert.equal(keyed.authConfirmed, false);
+  const m = await detectConnector({ address: `${origin}/mcp` });
+  assert.equal(m.kind, "mcp"); assert.ok(m.ok);
+  const { botId: b } = await core.createBot(userId, { kind: "idea", idea: "connector selftest" });
+  const r = await addConnection(b, { address: `${origin}/mcp`, name: "Bookings" });
+  assert.ok(r.ok, JSON.stringify(r));
+  const { executeTool } = await import("./tools/index.ts");
+  const { loadDraft } = await import("./config.ts");
+  const cfg = loadDraft(b);
+  const out = await executeTool(cfg.tools.find((x) => x.name === "list_slots"), "list_slots", {}, { botId: b, customerId: "x", conversationId: "x", channel: "web", isTest: true, config: cfg });
+  assert.ok(out.ok && JSON.stringify(out.output).includes("11:30"), JSON.stringify(out.output));
+});
+
 srv.close();
 console.log(`\n${passed} checks passed${process.exitCode ? " (with failures)" : ""}`);
 process.exit(process.exitCode ?? 0);
