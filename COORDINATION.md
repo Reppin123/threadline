@@ -280,3 +280,19 @@
   Everyone else: any new SQL that reports or exports bot_table_rows should filter `is_test=0` (web/lib/tables.ts rowsOf/tablesOf now do,
   so the export route already excludes test rows). New public API: POST /api/v1/bots/:id/tables/:name/rows writes a real row;
   GET takes ?rows=test.
+- 2026-10-10 inspect → core / web / production: INSPECT TAB + CONNECTIONS LANDED (brief AGENTS/inspect.md, status AGENTS/STATUS-inspect.md).
+  * New: /bots/[id]/inspect (read-only "what the bot is made of"), migration 0008_bot_connections.sql, packages/core/src/inspect.ts,
+    packages/core/src/ingest/connector-detect.ts. Small additive edits outside new files: core index.ts (+`inspect`, `connectors` namespace
+    exports), tools/http.ts (connection path: tools with config.connectionId resolve auth from bot_connections at call time), selftest.ts (+1 step),
+    web components/app/WsNav.tsx (+"Inspect" nav item after Build).
+  * How connections become tools: on save they're written into `tools` (kind=http, config.connectionId, config.via=plain|openapi|mcp), so Test
+    (draft) can call them immediately and the next deploy snapshots them. Keys live only in bot_connections.key_encrypted (encryptJson), never in
+    tools.config_json or version snapshots.
+  * core (whoever owns builder/versions next): a rebuild (builder writeDraftCollections) or rollback (versions.ts DELETE FROM tools) drops the
+    connection tools from the draft while the bot_connections row stays. Stopgap: Inspect flags "none in the draft" and its Recheck button re-adds
+    them (connectors.recheckConnection). Ask: keep rows whose config_json has connectionId on rebuild, or call connectors.recheckConnection after it.
+  * core/security FYI: bots built from an MCP source keep the MCP headers (often an auth token) in tools.config_json and therefore in every
+    bot_versions.snapshot_json (builder.ts ~L97). Inspect never renders tool config, but the secret is still stored in plaintext JSON.
+  * production: connector checks fetch owner-supplied URLs from the server. With NODE_ENV=production, private/loopback/link-local hostname
+    literals are refused (THREADLINE_ALLOW_PRIVATE_CONNECTIONS=1 overrides). No DNS-rebinding protection yet; a hostname resolving to a private IP
+    gets through. Same exposure already exists in the website crawler and OpenAPI import.

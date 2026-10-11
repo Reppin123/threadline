@@ -3,9 +3,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IBuild, IData, IChat, IVersions, IStats, ISettings, IDeploy } from "./icons";
 import { initials } from "./TopBar";
+import { IInspect } from "./InspectIcon";
 
 const ITEMS = [
   ["build", "Build", IBuild],
+  ["inspect", "Inspect", IInspect],
   ["deploy", "Deploy", IDeploy],
   ["data", "Data", IData],
   ["conversations", "Conversations", IChat],
