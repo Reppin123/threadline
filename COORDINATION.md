@@ -325,3 +325,7 @@
   apps/web/scripts/e2e.mjs on :3007 now (DoD 5) and then taking scheduler's Scheduled-tab request (is_test filter under the same
   Customers/Test toggle + Repeat/Next/Last/Runs columns via @threadline/core/schedule chipView). Please stay off testdata files and :3007
   until I post "testdata: done" here; I'll stop the :3007 server and restore the tsconfig/next-env churn when finished.
+- 2026-10-10 18:45 testdata: done (AGENTS/STATUS-testdata.md). :3007 stopped, tsconfig/next-env churn restored. Data → Scheduled now filters
+  scheduled_messages.is_test with the same Customers | Test data toggle (scheduler's request), and the Scheduled tile counts only real
+  upcoming rows. Open for others: [builder/core] idea bots get both an Orders table and a mock create_order tool, and the model picks
+  the mock tool, so playground orders never reach Orders/Data. Pick one path. [web] lib/data.ts scheduled count still includes is_test rows.

@@ -7,14 +7,21 @@ import { rowsMode, rowsOf, tablesOf, type RowsMode } from "@/lib/tables";
 import { TableEditor } from "@/components/app/TableEditor";
 import { CancelScheduled, ForgetCustomer } from "@/components/app/SmallActions";
 import { ClearTestData } from "@/components/app/ClearTestData";
+import { chipView, type ScheduledRow } from "@threadline/core/schedule";
 
 export const metadata: Metadata = { title: "Data" };
 const TABS = [["saved", "Saved data"], ["tables", "Tables"], ["scheduled", "Scheduled"], ["customers", "Customers"]] as const;
 // A real customer has a non-test conversation (or none yet, e.g. added via the API). Playground + check simulators only ever have test ones.
 const LIVE_CUSTOMER = "c.handle!='owner-preview' AND (EXISTS(SELECT 1 FROM conversations v WHERE v.customer_id=c.id AND v.is_test=0) OR NOT EXISTS(SELECT 1 FROM conversations v WHERE v.customer_id=c.id))";
 
-/** Flow's "Which rows: Customers | Test data" split for the Saved data and Tables views. */
-function WhichRows({ mode, testCount, href }: { mode: RowsMode; testCount: number; href: (m: RowsMode) => string }) {
+const TOGGLE_TABS = new Set(["saved", "tables", "scheduled"]);
+const HINT = {
+  rows: ["What real customers' chats saved. Nothing from your tests shows here.", "What the bot saved in Test and your test questions. Real customers never see it."],
+  scheduled: ["Messages going to real customers.", "What the bot scheduled in Test. It's delivered into the test chat only. Real customers never see it."],
+} as const;
+
+/** Flow's "Which rows: Customers | Test data" split for the Saved data, Tables and Scheduled views. */
+function WhichRows({ mode, testCount, href, hint = HINT.rows }: { mode: RowsMode; testCount: number; href: (m: RowsMode) => string; hint?: readonly [string, string] }) {
   return (
     <div className="card box" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }} id="which-rows">
       <span className="stat-k" style={{ margin: 0 }}>Which rows</span>
@@ -25,7 +32,7 @@ function WhichRows({ mode, testCount, href }: { mode: RowsMode; testCount: numbe
         </Link>
       </div>
       <p className="muted" style={{ flex: 1, minWidth: 220, fontSize: 13 }}>
-        {mode === "test" ? "What the bot saved in Test and your test questions. Real customers never see it." : "What real customers' chats saved. Nothing from your tests shows here."}
+        {hint[mode === "test" ? 1 : 0]}
       </p>
     </div>
   );
@@ -46,11 +53,14 @@ export default async function DataPage({ params, searchParams }: { params: Promi
     `SELECT count(DISTINCT c.id) n FROM customers c WHERE c.bot_id=? AND ${LIVE_CUSTOMER} AND (EXISTS(SELECT 1 FROM memories m WHERE m.customer_id=c.id) OR EXISTS(SELECT 1 FROM bot_table_rows r JOIN bot_tables t ON t.id=r.table_id WHERE r.customer_id=c.id AND t.bot_id=c.bot_id AND r.is_test=0))`,
     [bot.id],
   )!.n;
-  const scheduled = all<{ id: string; channel: string; prompt: string; text: string | null; send_at: string; status: string; handle: string }>(
-    "SELECT s.id,s.channel,s.prompt,s.text,s.send_at,s.status,c.handle FROM scheduled_messages s JOIN customers c ON c.id=s.customer_id WHERE s.bot_id=? ORDER BY CASE s.status WHEN 'scheduled' THEN 0 ELSE 1 END, julianday(s.send_at) DESC LIMIT 200",
-    [bot.id],
-  );
-  const upcoming = scheduled.filter((s) => s.status === "scheduled").length;
+  // scheduled_messages.is_test comes from migration 0007 (scheduler): rows made in Build → Test, delivered into the test chat only.
+  const scheduled = all<ScheduledRow & { handle: string }>(
+    "SELECT s.*,c.handle FROM scheduled_messages s JOIN customers c ON c.id=s.customer_id WHERE s.bot_id=? AND s.is_test=? ORDER BY CASE s.status WHEN 'scheduled' THEN 0 ELSE 1 END, julianday(COALESCE(s.next_run_at,s.send_at)) DESC LIMIT 200",
+    [bot.id, mode === "test" && tab === "scheduled" ? 1 : 0],
+  ).map((s) => ({ ...s, view: chipView(s) }));
+  const sched = get<{ upcoming: number; test: number }>(
+    "SELECT COALESCE(SUM(is_test=0 AND status='scheduled'),0) upcoming, COALESCE(SUM(is_test=1),0) test FROM scheduled_messages WHERE bot_id=?", [bot.id])!;
+  const upcoming = sched.upcoming;
   const customers = all<{ id: string; channel: string; handle: string; display_name: string | null; last_seen: string }>(
     `SELECT c.id,c.channel,c.handle,c.display_name,c.last_seen FROM customers c WHERE c.bot_id=? AND ${LIVE_CUSTOMER} ORDER BY c.last_seen DESC LIMIT 300`,
     [bot.id],
@@ -59,7 +69,7 @@ export default async function DataPage({ params, searchParams }: { params: Promi
   const memBy = new Map<string, { key: string; value: string }[]>();
   for (const m of mems) memBy.set(m.customer_id, [...(memBy.get(m.customer_id) ?? []), m]);
   const match = (...xs: unknown[]) => !q || xs.some((x) => String(x ?? "").toLowerCase().includes(q));
-  const href = (t: string, m: RowsMode = mode) => `/bots/${bot.id}/data?tab=${t}${m === "test" && (t === "saved" || t === "tables") ? "&rows=test" : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
+  const href = (t: string, m: RowsMode = mode) => `/bots/${bot.id}/data?tab=${t}${m === "test" && TOGGLE_TABS.has(t) ? "&rows=test" : ""}${q ? `&q=${encodeURIComponent(q)}` : ""}`;
   const test = mode === "test";
 
   return (
@@ -69,7 +79,7 @@ export default async function DataPage({ params, searchParams }: { params: Promi
         <div className="toolbar" style={{ margin: 0 }}>
           <form action={`/bots/${bot.id}/data`} role="search">
             <input type="hidden" name="tab" value={tab} />
-            {test && (tab === "saved" || tab === "tables") && <input type="hidden" name="rows" value="test" />}
+            {test && TOGGLE_TABS.has(tab) && <input type="hidden" name="rows" value="test" />}
             <label className="sr-only" htmlFor="data-q">Search everything</label>
             <input id="data-q" className="input" name="q" defaultValue={sp.q} placeholder="Search everything" style={{ width: 240, height: 38 }} />
           </form>
@@ -144,20 +154,42 @@ export default async function DataPage({ params, searchParams }: { params: Promi
       )}
 
       {tab === "scheduled" && (
-        scheduled.length === 0 ? <div className="card empty"><h2>Nothing scheduled</h2><p>Reminders and follow-ups your bot sets — or ones you send through the API — show up here.</p></div> : (
-          <div className="card row-list">
-            {scheduled.filter((s) => match(s.prompt, s.text, s.handle)).map((s) => (
-              <div className="row" key={s.id}>
-                <div className="grow">
-                  <div className="title">{s.text || s.prompt}</div>
-                  <div className="meta">{CHANNEL_LABEL[s.channel] ?? s.channel} · {s.handle} · {s.status === "scheduled" ? `sends ${fmtDate(s.send_at)}` : `${s.status} ${fmtDate(s.send_at)}`}</div>
-                </div>
-                <span className={`pill ${s.status === "sent" ? "pill-live" : s.status === "failed" ? "pill-err" : s.status === "scheduled" ? "pill-blue" : "pill-off"}`}>{s.status}</span>
-                {s.status === "scheduled" && <CancelScheduled botId={bot.id} id={s.id} />}
-              </div>
-            ))}
-          </div>
-        )
+        <>
+          <WhichRows mode={mode} testCount={sched.test} href={(m) => href("scheduled", m)} hint={HINT.scheduled} />
+          {scheduled.length === 0 ? (
+            test
+              ? <div className="card empty"><h2>No test messages</h2><p>Ask your bot in Build to remind you of something. It shows up here, not with your customers.</p><Link className="btn" href={`/bots/${bot.id}/build`}>Go to Build</Link></div>
+              : <div className="card empty"><h2>Nothing scheduled</h2><p>Reminders and follow-ups your bot sets — or ones you send through the API — show up here.</p></div>
+          ) : (
+            <div className="card row-list" id="scheduled-list">
+              {scheduled.filter((s) => match(s.prompt, s.text, s.handle, s.view.describe)).map((s) => {
+                const v = s.view;
+                const runs = v.run_count + v.skip_count > 0 ? [v.run_count && `${v.run_count} sent`, v.skip_count && `${v.skip_count} skipped`].filter(Boolean).join(" · ") : null;
+                return (
+                  <div className="row" key={s.id} data-scheduled={s.id}>
+                    <div className="grow">
+                      <div className="title">{s.text || s.prompt}</div>
+                      <div className="meta">
+                        {CHANNEL_LABEL[s.channel] ?? s.channel} · {test ? "test chat" : s.handle}
+                        {s.repeat ? ` · ${v.describe}` : ""}
+                        {v.next_run_at ? ` · next ${fmtDate(v.next_run_at)}` : s.status !== "scheduled" ? ` · ${s.status} ${fmtDate(s.sent_at ?? s.send_at)}` : ""}
+                      </div>
+                      {(v.last_run_at || runs) && (
+                        <div className="meta">
+                          {v.last_run_at ? `Last run ${fmtDate(v.last_run_at)}${v.last_status ? ` · ${v.last_status}` : ""}` : ""}
+                          {v.last_run_at && runs ? " · " : ""}{runs}
+                          {v.last_status === "failed" && v.last_note ? ` · ${v.last_note}` : ""}
+                        </div>
+                      )}
+                    </div>
+                    <span className={`pill ${s.status === "sent" ? "pill-live" : s.status === "failed" ? "pill-err" : s.status === "scheduled" ? "pill-blue" : "pill-off"}`}>{s.repeat && s.status === "scheduled" ? "repeats" : s.status}</span>
+                    {s.status === "scheduled" && <CancelScheduled botId={bot.id} id={s.id} />}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {tab === "customers" && (

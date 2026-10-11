@@ -244,6 +244,28 @@ try {
     return reply.slice(0, 200);
   });
 
+  await step("Scheduled tab: a reminder set in Test shows only under Test data, with its recurrence", async () => {
+    const before = await page.evaluate(async (id) => (await fetch(`/bots/${id}/data?tab=scheduled&rows=test`)).text(), botId);
+    const n0 = Number(before.match(/data-test-count="(\d+)"/)?.[1] ?? 0);
+    let n = n0;
+    for (const m of ["Please remind me every Monday at 9am to reorder beans.", "Yes, set that weekly reminder for every Monday at 9am."]) {
+      await say("preview", m);
+      const v = await page.evaluate(async (id) => (await fetch(`/bots/${id}/data?tab=scheduled&rows=test`)).text(), botId);
+      n = Number(v.match(/data-test-count="(\d+)"/)?.[1] ?? 0);
+      if (n > n0) break;
+    }
+    if (n <= n0) throw new Error("no test schedule was created");
+    await go(`/bots/${botId}/data?tab=scheduled&rows=test`);
+    const t = await page.evaluate(() => ({ rows: document.querySelectorAll("#scheduled-list [data-scheduled]").length, text: document.querySelector("#scheduled-list")?.innerText.replace(/\s+/g, " ").slice(0, 300) ?? "" }));
+    await shot("scheduled-test");
+    if (t.rows !== n || !/monday/i.test(t.text)) throw new Error("test view: " + JSON.stringify(t));
+    await go(`/bots/${botId}/data?tab=scheduled`);
+    const c = await page.evaluate(() => ({ rows: document.querySelectorAll("#scheduled-list [data-scheduled]").length, tile: document.querySelectorAll(".tile")[2]?.innerText.replace(/\s+/g, " ") }));
+    await shot("scheduled-customers");
+    if (c.rows !== 0 || !/nothing/i.test(c.tile ?? "")) throw new Error("customers view: " + JSON.stringify(c));
+    return { test: t.rows, customers: c.rows, tile: c.tile, row: t.text.slice(0, 140) };
+  });
+
   await step("mobile: toggle fits at 390px", async () => {
     await page.setViewport({ width: 390, height: 844, isMobile: true });
     await tablesView(botId, "live");
