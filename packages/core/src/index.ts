@@ -25,7 +25,8 @@ export const core: CoreAPI = {
 // Extra helpers (additive): wizard → source mapping, awaiting a check run, provider info.
 export { sourceFromWizard } from "./wizard.ts";
 export { waitForRun } from "./checks.ts";
-export { providerName } from "./llm.ts";
+export { providerName, providerModel, providerConfigured, providerKeyEnvs, PROVIDERS } from "./llm.ts";
+export type { ProviderName } from "./llm.ts";
 export { refreshBuiltins } from "./builder.ts";
 
 export default core;

@@ -1,5 +1,7 @@
 // One LLM interface for every caller. Providers in order:
 // ANTHROPIC_API_KEY → OPENAI_API_KEY → local Claude CLI (dev) → "offline" deterministic stub (THREADLINE_LLM=offline).
+// THREADLINE_PROVIDER (anthropic|openai|deepseek|kimi|glm|cli|offline) picks one explicitly; deepseek/kimi/glm are
+// OpenAI-compatible chat-completions endpoints driven by the same adapter as openai (see OPENAI_COMPAT below).
 import { spawn, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -26,6 +28,7 @@ export interface CompleteOpts {
   // Deterministic answer for the offline provider (unit tests). Receives the same opts.
   offline?: (o: CompleteOpts) => { text?: string; toolCalls?: Omit<ToolCall, "id">[] };
   timeoutMs?: number;
+  provider?: ProviderName;      // per-call override (model shootout); default = providerName()
 }
 export interface CompleteResult {
   text: string;
@@ -36,7 +39,56 @@ export interface CompleteResult {
   ms: number;
 }
 
-export type ProviderName = "anthropic" | "openai" | "cli" | "offline";
+export type ProviderName = "anthropic" | "openai" | "deepseek" | "kimi" | "glm" | "cli" | "offline";
+export const PROVIDERS: ProviderName[] = ["anthropic", "openai", "deepseek", "kimi", "glm", "cli", "offline"];
+
+// OpenAI-shape chat-completions providers. Keys come from process.env only; first non-empty env var wins.
+interface CompatSpec {
+  baseUrl: string; keyEnvs: string[]; baseUrlEnv: string;
+  model: string; fastModel: string; modelEnv: string; fastModelEnv: string;
+  prices: Record<string, [number, number]>;   // $ per 1M tokens [input, output], keyed by model id
+}
+const OPENAI_COMPAT: Partial<Record<ProviderName, CompatSpec>> = {
+  openai: {
+    baseUrl: "https://api.openai.com/v1", baseUrlEnv: "THREADLINE_OPENAI_BASE_URL", keyEnvs: ["OPENAI_API_KEY"],
+    model: "gpt-4.1", fastModel: "gpt-4.1-mini", modelEnv: "THREADLINE_OPENAI_MODEL", fastModelEnv: "THREADLINE_OPENAI_FAST_MODEL",
+    prices: {},
+  },
+  deepseek: {
+    baseUrl: "https://api.deepseek.com/v1", baseUrlEnv: "THREADLINE_DEEPSEEK_BASE_URL", keyEnvs: ["DEEPSEEK_API_KEY"],
+    model: "deepseek-chat", fastModel: "deepseek-chat", modelEnv: "THREADLINE_DEEPSEEK_MODEL", fastModelEnv: "THREADLINE_DEEPSEEK_FAST_MODEL",
+    prices: { "deepseek-chat": [0.28, 0.42], "deepseek-reasoner": [0.28, 0.42] },
+  },
+  kimi: {
+    baseUrl: "https://api.moonshot.ai/v1", baseUrlEnv: "THREADLINE_KIMI_BASE_URL", keyEnvs: ["KIMI_API_KEY", "MOONSHOT_API_KEY"],
+    model: "kimi-k2-0905-preview", fastModel: "kimi-k2-0905-preview", modelEnv: "THREADLINE_KIMI_MODEL", fastModelEnv: "THREADLINE_KIMI_FAST_MODEL",
+    prices: { "kimi-k2-0905-preview": [0.6, 2.5], "kimi-k2-turbo-preview": [1.15, 8], "kimi-k2-0711-preview": [0.6, 2.5] },
+  },
+  glm: {
+    baseUrl: "https://api.z.ai/api/paas/v4", baseUrlEnv: "THREADLINE_GLM_BASE_URL", keyEnvs: ["GLM_API_KEY", "ZHIPU_API_KEY"],
+    model: "glm-4.6", fastModel: "glm-4.5-air", modelEnv: "THREADLINE_GLM_MODEL", fastModelEnv: "THREADLINE_GLM_FAST_MODEL",
+    prices: { "glm-4.6": [0.6, 2.2], "glm-4.5": [0.6, 2.2], "glm-4.5-air": [0.2, 1.1] },
+  },
+};
+const compatKey = (p: ProviderName) => OPENAI_COMPAT[p]?.keyEnvs.map((k) => process.env[k]).find(Boolean);
+/** Env var names a provider reads its key from (for "missing key" reporting; never the values). */
+export function providerKeyEnvs(p: ProviderName): string[] {
+  return OPENAI_COMPAT[p]?.keyEnvs ?? (p === "anthropic" ? ["ANTHROPIC_API_KEY"] : []);
+}
+/** Is the provider usable right now (key present / CLI installed / offline always)? */
+export function providerConfigured(p: ProviderName): boolean {
+  if (p === "offline") return true;
+  if (p === "cli") return existsSync(cliPath());
+  if (p === "anthropic") { loadKeychainKey(); return !!process.env.ANTHROPIC_API_KEY; }
+  return !!compatKey(p);
+}
+/** The model id a provider will use for a tier. */
+export function providerModel(p: ProviderName, tier: "smart" | "fast" = "smart"): string {
+  if (p === "anthropic") return anthropicModel(tier);
+  const c = OPENAI_COMPAT[p];
+  if (!c) return p === "cli" ? (tier === "fast" ? process.env.THREADLINE_CLI_FAST_MODEL || "haiku" : process.env.THREADLINE_CLI_MODEL || "sonnet") : "offline";
+  return tier === "fast" ? (process.env[c.fastModelEnv] || c.fastModel) : (process.env[c.modelEnv] || c.model);
+}
 
 // macOS dev: pull ANTHROPIC_API_KEY from Keychain once if not in env (never logged).
 let _keychainTried = false;
@@ -53,8 +105,11 @@ function loadKeychainKey() {
 
 export function providerName(): ProviderName {
   loadKeychainKey();
-  const forced = process.env.THREADLINE_LLM as ProviderName | undefined;
-  if (forced && ["anthropic", "openai", "cli", "offline"].includes(forced)) return forced;
+  // THREADLINE_LLM=offline (tests) always wins; otherwise THREADLINE_PROVIDER, then the legacy THREADLINE_LLM.
+  const llm = process.env.THREADLINE_LLM as ProviderName | undefined;
+  if (llm === "offline") return "offline";
+  const forced = (process.env.THREADLINE_PROVIDER || llm) as ProviderName | undefined;
+  if (forced && PROVIDERS.includes(forced)) return forced;
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
   if (process.env.OPENAI_API_KEY) return "openai";
   if (existsSync(cliPath())) return "cli";
@@ -62,7 +117,7 @@ export function providerName(): ProviderName {
 }
 
 /** Does the active provider support native tool calling (vs. our JSON protocol)? */
-export function hasNativeTools() { const p = providerName(); return p === "anthropic" || p === "openai"; }
+export function hasNativeTools() { const p = providerName(); return p === "anthropic" || p in OPENAI_COMPAT; }
 
 // $ per 1M tokens [input, output]
 const PRICES: Record<string, [number, number]> = {
@@ -70,18 +125,18 @@ const PRICES: Record<string, [number, number]> = {
   "claude-haiku-5-5": [0.1, 0.5], "claude-haiku-4-5": [1, 5], "claude-opus-5-5": [4, 20],
   "gpt-4.1": [2, 8], "gpt-4.1-mini": [0.4, 1.6], "gpt-4o-mini": [0.15, 0.6],
 };
-function priceFor(model: string, i: number, o: number) {
-  const p = PRICES[model] ?? [3, 15];
+function priceFor(model: string, i: number, o: number, extra?: Record<string, [number, number]>) {
+  const p = extra?.[model] ?? PRICES[model] ?? [3, 15];
   return (i * p[0] + o * p[1]) / 1e6;
 }
 
 export async function complete(opts: CompleteOpts): Promise<CompleteResult> {
   const t0 = Date.now();
-  const p = providerName();
+  const p = opts.provider ?? providerName();
   if (p !== "offline") assertLlmAllowed(opts.botId);   // spend cap per account + global + kill switch (safety.ts)
   let r: Omit<CompleteResult, "ms" | "provider">;
   if (p === "anthropic") r = await withRetry(() => anthropicComplete(opts));
-  else if (p === "openai") r = await withRetry(() => openaiComplete(opts));
+  else if (p in OPENAI_COMPAT) r = await withRetry(() => openaiComplete(opts, p));
   else if (p === "cli") r = await withRetry(() => cliComplete(opts), 2);
   else r = offlineComplete(opts);
   const res: CompleteResult = { ...r, provider: p, ms: Date.now() - t0 };
@@ -176,9 +231,12 @@ async function anthropicComplete(o: CompleteOpts) {
   return { text, toolCalls, raw: res.content, usage: { inputTokens: i, outputTokens: out, costUsd: priceFor(model, i, out) } };
 }
 
-// ───────────────────────── OpenAI (Chat Completions, native tools) ─────────────────────────
-async function openaiComplete(o: CompleteOpts) {
-  const model = o.tier === "fast" ? (process.env.THREADLINE_OPENAI_FAST_MODEL || "gpt-4.1-mini") : (process.env.THREADLINE_OPENAI_MODEL || "gpt-4.1");
+// ───────────────────── OpenAI-compatible Chat Completions (openai, deepseek, kimi, glm) ─────────────────────
+async function openaiComplete(o: CompleteOpts, provider: ProviderName = "openai") {
+  const c = OPENAI_COMPAT[provider]!;
+  const key = compatKey(provider);
+  if (!key) throw new Error(`${provider}: no API key — set ${c.keyEnvs.join(" or ")}`);
+  const model = providerModel(provider, o.tier);
   const messages: any[] = [{ role: "system", content: o.system }];
   for (const m of o.messages) {
     if (m.role === "user") messages.push({ role: "user", content: m.content });
@@ -191,20 +249,23 @@ async function openaiComplete(o: CompleteOpts) {
   const body: any = { model, messages, max_tokens: o.maxTokens ?? 4000 };
   if (o.tools?.length) body.tools = o.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } }));
   if (o.json && !o.tools?.length) body.response_format = { type: "json_object" };
+  // GLM 4.5+/4.6 think by default (slow + billed as output); turn it off unless asked.
+  if (provider === "glm" && !process.env.THREADLINE_GLM_THINKING) body.thinking = { type: "disabled" };
   const ctl = AbortSignal.timeout(o.timeoutMs ?? 90_000);
-  const r = await fetch("https://api.openai.com/v1/chat/completions", {
+  const base = (process.env[c.baseUrlEnv] || c.baseUrl).replace(/\/+$/, "");
+  const r = await fetch(`${base}/chat/completions`, {
     method: "POST", signal: ctl,
-    headers: { "content-type": "application/json", authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
   });
-  if (!r.ok) throw new Error(`openai ${r.status}: ${(await r.text()).slice(0, 300)}`);
+  if (!r.ok) throw new Error(`${provider} ${r.status}: ${(await r.text()).slice(0, 300).replaceAll(key, "***")}`);
   const j: any = await r.json();
   const msg = j.choices?.[0]?.message ?? {};
-  const toolCalls: ToolCall[] = (msg.tool_calls ?? []).map((t: any) => ({ id: t.id, name: t.function.name, input: safeParse(t.function.arguments) }));
+  const toolCalls: ToolCall[] = (msg.tool_calls ?? []).map((t: any, i: number) => ({ id: t.id || `call_${i}`, name: t.function.name, input: safeParse(t.function.arguments) }));
   const i = j.usage?.prompt_tokens ?? 0, out = j.usage?.completion_tokens ?? 0;
-  return { text: msg.content ?? "", toolCalls, usage: { inputTokens: i, outputTokens: out, costUsd: priceFor(model, i, out) } };
+  return { text: msg.content ?? "", toolCalls, usage: { inputTokens: i, outputTokens: out, costUsd: priceFor(model, i, out, c.prices) } };
 }
-function safeParse(s: string) { try { return JSON.parse(s); } catch { return {}; } }
+function safeParse(s: any) { if (s && typeof s === "object") return s; try { return JSON.parse(s); } catch { return {}; } }
 
 // ───────────────────────── Local Claude CLI (dev fallback, JSON tool protocol) ─────────────────────────
 export function cliPath() { return process.env.THREADLINE_CLAUDE_CLI || join(homedir(), ".local/bin/claude"); }

@@ -329,3 +329,19 @@
   scheduled_messages.is_test with the same Customers | Test data toggle (scheduler's request), and the Scheduled tile counts only real
   upcoming rows. Open for others: [builder/core] idea bots get both an Orders table and a mock create_order tool, and the model picks
   the mock tool, so playground orders never reach Orders/Data. Pick one path. [web] lib/data.ts scheduled count still includes is_test rows.
+
+- 2026-10-10 Aki → everyone: new agent "models" starting, owns packages/core/src/llm.ts
+  (additive) + a new packages/core/scripts/model-shootout.ts. Goal: add DeepSeek / Kimi K2
+  (Moonshot) / GLM (Zhipu) as selectable cheap providers alongside Anthropic/OpenAI, so we
+  can A/B cost + tool-calling quality against the real conversation loop. No third-party
+  keys in Keychain yet (DEEPSEEK_API_KEY / KIMI_API_KEY / GLM_API_KEY) — agent should build
+  and prove the harness against whatever keys ARE available (Anthropic/OpenAI) and flag the
+  rest as Needs Aki. core/other agents: llm.ts changes are additive only, existing
+  anthropic/openai/cli call signatures must not break.
+
+- 2026-10-10 models → everyone: DONE (AGENTS/STATUS-models.md). llm.ts is additive: `THREADLINE_PROVIDER` (anthropic|openai|deepseek|kimi|glm|cli|offline)
+  now selects the provider for every `complete()`; unset keeps today's key-based default, THREADLINE_LLM=offline still wins. New optional
+  `CompleteOpts.provider` per-call override; core index.ts additionally exports providerModel/providerConfigured/providerKeyEnvs/PROVIDERS.
+  Note for production/deploy owners: if you want a third-party provider in the container, pass THREADLINE_PROVIDER + its key through the Worker env
+  (not done by me). Shootout: `pnpm --filter @threadline/core shootout`. DeepSeek/Kimi/GLM keys still missing → wired + mock-tested only.
+  Caveat for Aki: the chat prompt/tool loop was tuned on Claude; compare with the shootout before switching production traffic.

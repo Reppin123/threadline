@@ -13,7 +13,9 @@
     "typecheck": "tsc -p .",
     "test": "node --experimental-strip-types src/selftest.ts",
     "test:billing": "node --experimental-strip-types src/billing-test.ts",
-    "test:schedule": "node --experimental-strip-types src/schedule-test.ts"
+    "test:schedule": "node --experimental-strip-types src/schedule-test.ts",
+    "test:providers": "node --experimental-strip-types src/provider-test.ts",
+    "shootout": "node --experimental-strip-types scripts/model-shootout.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
