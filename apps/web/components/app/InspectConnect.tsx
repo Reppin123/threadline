@@ -1,7 +1,7 @@
 "use client";
 // Inspect tab client pieces (agent inspect): "Connect an app or server" form, per-connection actions, copy button.
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   checkConnection, saveConnection, recheckConnectionAction, removeConnectionAction, type ConnectForm, type DetectView,
 } from "@/app/(app)/bots/[id]/inspect/actions";
@@ -21,6 +21,8 @@ export function InspectConnectForm({ botId }: { botId: string }) {
   const [saved, setSaved] = useState<string | null>(null);
   const [busy, setBusy] = useState<"check" | "save" | null>(null);
   const [, start] = useTransition();
+  const [ready, setReady] = useState(false); // before hydration a click would do a native GET submit and reload the page
+  useEffect(() => setReady(true), []);
 
   // any edit invalidates the last check: what gets saved is always what was just validated
   const set = <K extends keyof ConnectForm>(k: K, v: ConnectForm[K]) => { setF((p) => ({ ...p, [k]: v })); setResult(null); setError(null); setSaved(null); };
@@ -52,7 +54,7 @@ export function InspectConnectForm({ botId }: { botId: string }) {
   };
 
   return (
-    <form onSubmit={check} className="card box insp-connect" id="connect-form" aria-label="Connect an app or server">
+    <form onSubmit={check} className="card box insp-connect" id="connect-form" aria-label="Connect an app or server" data-ready={ready ? "1" : undefined}>
       <div className="insp-connect-head">
         <b>Connect an app or server</b>
         <span className="muted">Paste an address. We work out what it is and how it signs in, test it with one harmless read, then add its tools to this bot.</span>
@@ -98,7 +100,7 @@ export function InspectConnectForm({ botId }: { botId: string }) {
       {saved && <p role="status" className="ok-box" id="conn-saved">{saved}</p>}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button className="btn btn-sm" disabled={!!busy || !f.address.trim()} id="conn-check">{busy === "check" ? "Checking…" : result ? "Check again" : "Check connection"}</button>
+        <button className="btn btn-sm" disabled={!ready || !!busy || !f.address.trim()} id="conn-check">{busy === "check" ? "Checking…" : result ? "Check again" : "Check connection"}</button>
         {result?.ok && <button type="button" className="btn btn-sm btn-primary" disabled={!!busy} onClick={save} id="conn-save">{busy === "save" ? "Saving…" : `Save and add ${result.tools.length} tool${result.tools.length === 1 ? "" : "s"}`}</button>}
       </div>
     </form>

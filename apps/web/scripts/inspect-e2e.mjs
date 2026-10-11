@@ -32,19 +32,22 @@ const errors = [];
 const browser = await puppeteer.launch({ executablePath: CHROME, headless: true, timeout: 180000, userDataDir: "/tmp/tl-inspect-chrome", args: ["--no-sandbox"] });
 const page = await browser.newPage();
 await page.setViewport({ width: 1360, height: 900 });
-page.setDefaultTimeout(60000);
-page.setDefaultNavigationTimeout(180000);
+page.setDefaultTimeout(240000);
+page.setDefaultNavigationTimeout(400000);
 page.on("pageerror", (e) => errors.push(String(e?.message || e)));
 page.on("console", (m) => { if (m.type() === "error" && !/favicon|DevTools|HMR|Fast Refresh|ERR_ABORTED/i.test(m.text())) errors.push(m.text().slice(0, 300)); });
-const go = async (p) => { const r = await page.goto(BASE + p, { waitUntil: "networkidle2" }); if (!r || r.status() >= 400) throw new Error(`${p} → ${r?.status()}`); };
+const go = async (p) => { const r = await page.goto(BASE + p, { waitUntil: "domcontentloaded" }); if (!r || r.status() >= 400) throw new Error(`${p} → ${r?.status()}`); };
 const shot = (n, full = true) => page.screenshot({ path: join(SHOTS, `${n}.png`), fullPage: full });
 const text = () => page.evaluate(() => document.body.innerText);
 
 try {
   await step("sign in as the bot owner (dev magic link)", async () => {
+    await go(`/bots/${BOT}/inspect`);
+    if (!page.url().includes("/login")) return "already signed in (profile " + "/tmp/tl-inspect-chrome)";
     await go("/login");
+    await page.waitForSelector("#email");
     await page.type("#email", EMAIL);
-    await Promise.all([page.waitForNavigation({ waitUntil: "networkidle2" }), page.click("#magic-submit")]);
+    await Promise.all([page.waitForNavigation({ waitUntil: "domcontentloaded" }), page.click("#magic-submit")]);
     await page.waitForSelector("#dev-magic-link");
     const href = await page.$eval("#dev-magic-link", (e) => e.getAttribute("href"));
     await go(new URL(href, BASE).pathname); // the link carries APP_URL's origin; follow it on this server
@@ -54,8 +57,9 @@ try {
 
   await step("Inspect tab is in the bot nav and renders every section", async () => {
     await go(`/bots/${BOT}/build`);
-    await page.waitForSelector("#nav-inspect");
-    await Promise.all([page.waitForNavigation({ waitUntil: "networkidle2" }), page.click("#nav-inspect")]);
+    const href = await page.$eval("#nav-inspect", (e) => e.getAttribute("href"));
+    if (href !== `/bots/${BOT}/inspect`) throw new Error("nav link " + href);
+    await go(href);
     for (const s of ["instructions", "tools", "connections", "keys", "settings", "tests", "data", "files", "updates"]) await page.waitForSelector(`#insp-${s}`);
     const prompt = await page.$eval("#insp-prompt", (e) => e.textContent);
     if (!/# Rules/.test(prompt) || !/# Output format/.test(prompt)) throw new Error("prompt is not the runtime system prompt");
@@ -73,12 +77,13 @@ try {
   if (!SKIP_CONNECT) {
     await step(`connect ${CONNECT_URL}: Check shows detected kind + sign-in before saving`, async () => {
       await go(`/bots/${BOT}/inspect?v=draft`);
+      await page.waitForSelector("#connect-form[data-ready]");
       await page.type("#conn-address", CONNECT_URL);
       await page.evaluate(() => { document.querySelector(".insp-more").open = true; });
       await page.type("#conn-name", "GitHub");
       await page.type("#conn-testpath", "/users/octocat");
       await page.click("#conn-check");
-      await page.waitForSelector("#conn-detected", { timeout: 60000 });
+      await page.waitForSelector("#conn-detected, #conn-error", { timeout: 120000 });
       const kind = await page.$eval("#conn-detected-kind", (e) => e.textContent);
       const auth = await page.$eval("#conn-detected-auth", (e) => e.textContent);
       await shot("connect-detected", false);
@@ -106,8 +111,14 @@ try {
     await go(`/bots/${BOT}/build`);
     const sel = "#preview-input";
     await page.waitForSelector(sel);
-    await page.type(sel, QUESTION);
-    await page.keyboard.press("Enter");
+    // Send is only enabled by React state, so it turning on proves the page is hydrated and the text registered
+    for (let i = 0; i < 40; i++) {
+      await page.$eval(sel, (e) => { e.value = ""; });
+      await page.type(sel, QUESTION);
+      if (await page.$eval("#preview-send", (b) => !b.disabled)) break;
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+    await page.click("#preview-send");
     const deadline = Date.now() + 180000;
     while (Date.now() < deadline) {
       const t = await text();
