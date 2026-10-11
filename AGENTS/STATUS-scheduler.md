@@ -48,7 +48,10 @@
 - × on a chip → status=cancelled, next_run_at NULL, chip "⏰ Test: cancelled" with no buttons.
 - Worker path: recurring test row made due → worker log `schedule sweep {"delivered":1}` → bubble in the test chat, run_count 1,
   next_run_at rolled to the next Monday 09:00.
-- Screenshots: /tmp/tl-sched-ui/1-oneoff.png, 2-recurring.png, 3-sendnow.png, 4-reload.png, 5-cancel.png.
+- Open page, no reload: worker delivered a due recurring test row → chip went to "sent 2×" and the new bubble appeared via the 15 s poll.
+- Polish re-run after dedupe/prompt fixes: one row per request (no duplicate), on-topic delivery text, Send now Mon 12 → Mon 19 Oct;
+  390 px viewport chip layout OK (7-mobile.png). Empty `prompt` → tool returns an error instead of scheduling nothing.
+- Screenshots: /tmp/tl-sched-ui/1-oneoff.png, 2-recurring.png, 3-sendnow.png, 4-reload.png, 5-cancel.png, 6-poll.png, 7-mobile.png.
 - Tests: `pnpm --filter @threadline/core test:schedule` 31/31 (parsing, DST, monthly clamp, tool, dedupe, sweep on gateway-sent/failed
   rows, one-shot recording, sendNow test/real, cancel); `pnpm --filter @threadline/gateway test` 37/37; `pnpm --filter @threadline/worker test`
   ALL PASS; `pnpm --filter @threadline/core test` 19 passed; typecheck core/web/worker/gateway ok.
